@@ -140,3 +140,20 @@ button:hover:not(:disabled) { border-color: #c5d2e2; }
 @media(max-width:600px) { .explore-content { padding: 36px 18px 60px; }.gallery-grid { grid-template-columns: 1fr; }.explore-brand { gap: 7px; }.explore-brand strong { font-size: 21px; }.explore-brand > span:last-child { font-size: 14px; }.explore-pill { padding: 8px 12px; }.explore-hero > p { font-size: 17px; }.explore-cta { margin-bottom: 32px; } }
 .board-label { min-height: 20px; padding: 1px 4px; border: 1px solid #ffffff90; border-radius: 3px; background: #285b42dc; color: #fffde6; font: 600 11px monospace; white-space: nowrap; }
 .exploded-label { min-height: 23px; padding: 2px 7px; border: 1px solid #d5dce3; border-radius: 12px; background: #ffffffed; color: #536171; font: 11px monospace; white-space: nowrap; }
+
+/* Keep inspection usable at phone widths: viewport first, details below. */
+.parts-panel { min-width: 0; overflow-y: auto; overflow-wrap: anywhere; }
+.phone-banner { font-size: 14px; }
+.board-label, .exploded-label { font-size: 14px; }
+@media (max-width: 600px) {
+  .cad-workspace, .cad-workspace.panel-hidden { grid-template-columns: minmax(0, 1fr); grid-template-rows: 44px minmax(460px, 65svh) 44px auto; overflow-y: auto; }
+  .cad-viewport { grid-column: 1; grid-row: 2; }
+  .parts-panel { grid-column: 1; grid-row: 4; border-left: 0; border-top: 1px solid #e6e8ee; overflow: visible; }
+  .step-tape { grid-column: 1; grid-row: 3; }
+  .toolbar-left > button, .toolbar-right > button:first-child { display: none; }
+  .viewport-presets { position: static; transform: none; margin-right: auto; }
+  .workspace-toolbar .segment button { padding: 5px 10px; }
+  .viewport-message { top: 18px; left: 95px; right: 12px; }
+  .parts-panel .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cad-readout { font-size: 14px; }
+}

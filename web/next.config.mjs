@@ -1,7 +1,7 @@
 // Backend paths proxied through the web app, so one public URL (e.g. a single
 // tunnel to :3000) serves the pages, the API, artifacts and the Photon webhook.
 const backend = (process.env.BACKEND_INTERNAL_URL || "http://localhost:8000").replace(/\/$/, "");
-const proxied = ["/runs", "/runs/:path*", "/artifacts/:path*", "/assets/:path*", "/webhooks/:path*", "/health"];
+const proxied = ["/gallery", "/runs", "/runs/:path*", "/artifacts/:path*", "/assets/:path*", "/webhooks/:path*", "/health"];
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

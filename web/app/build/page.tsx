@@ -25,11 +25,11 @@ export default function Home() {
     if (busy || !prompt.trim()) return;
     setBusy(true); setErr(null);
     try {
-      const r = await fetch(`${BACKEND}/runs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, source: "web" }) });
-      if (!r.ok) throw new Error(await r.text());
+      const r = await fetch(`${BACKEND}/runs`, { method: "POST", signal: AbortSignal.timeout(20000), headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, source: "web" }) });
+      if (!r.ok) throw new Error("Could not start the build. Please try again.");
       const data = await r.json();
       router.push(`/run/${data.run_id}`);
-    } catch (e) { setErr(String(e)); setBusy(false); }
+    } catch { setErr("Could not connect to start your build. Please try again shortly."); setBusy(false); }
   }
 
   return (
