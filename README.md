@@ -52,6 +52,8 @@ cd web && npm install && cp .env.local.example .env.local && npm run dev
 
 Convex (optional, enables live agent lanes): `cd web && npx convex dev`, then put the deployment URL in both `.env` (`CONVEX_URL`) and `web/.env.local` (`NEXT_PUBLIC_CONVEX_URL`). Without Convex the run page polls the backend instead.
 
+Photon (optional, enables iMessage): in the Photon dashboard, assign a shared iMessage line to the phone you'll text from and create a project API key. Set `PHOTON_API_KEY` and `PHOTON_PROJECT_ID` in `.env`, then add a webhook destination for `message.received` pointing at `$BACKEND_BASE_URL/webhooks/photon` (needs a public URL, e.g. a tunnel). Text the assigned number to start a run; replies go back in the same conversation. A shared line can only reply, so texting someone first needs a dedicated line and `PHOTON_AGENT_HANDLE`. Without Photon keys, outbound texts are logged to the console.
+
 Tests (offline, no keys needed):
 
 ```bash

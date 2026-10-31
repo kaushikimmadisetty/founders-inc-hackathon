@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import config
-from adapters.photon_adapter import parse_photon_webhook
+from adapters.photon_adapter import PhotonAdapter, get_messaging, parse_photon_webhook
 from models import RunCreate, RunState
 from orchestrator import RUNS, start_run
 
@@ -38,12 +38,20 @@ async def get_run(run_id: str):
     return RUNS[run_id]
 
 
+_seen_messages: set[str] = set()
+
+
 @app.post("/webhooks/photon")
 async def photon_webhook(req: Request):
-    payload = await req.json()
-    parsed = parse_photon_webhook(payload)
-    if not parsed:
-        raise HTTPException(400, "could not parse inbound message")
-    frm, text = parsed
-    state = start_run(text, "imessage", frm)
+    # Non-message events get 200 too, otherwise Photon retries them.
+    msg = parse_photon_webhook(await req.json())
+    if not msg:
+        return {"ok": True, "ignored": True}
+    if msg.message_id in _seen_messages:
+        return {"ok": True, "duplicate": True}
+    _seen_messages.add(msg.message_id)
+    messaging = get_messaging()
+    if isinstance(messaging, PhotonAdapter):
+        messaging.remember(msg)
+    state = start_run(msg.text, "imessage", msg.handle)
     return {"ok": True, "run_id": state.run_id}

@@ -1,8 +1,17 @@
-"""MessagingAdapter: Photon (iMessage) + Console fallback. Photon API shape is a
-placeholder. Confirm endpoints with the Photon team onsite and adjust `PhotonAdapter`."""
+"""MessagingAdapter: Photon (iMessage) + Console fallback.
+
+Photon API (Beta 2.0): https://photon.codes/docs/beta/api-reference
+Messages are sent into a Space (conversation) by an agent User. An inbound
+`message.received` webhook carries both IDs, so replies reuse them. A shared
+iMessage line cannot start a conversation: the user has to text it first."""
 from __future__ import annotations
 
+import json
 import logging
+import mimetypes
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 import httpx
@@ -25,37 +34,133 @@ class ConsoleAdapter:
         log.info("[MMS -> %s] %s %s", to, media_url, body)
 
 
+@dataclass
+class Inbound:
+    handle: str        # the human's phone number or iMessage email
+    text: str
+    message_id: str
+    space_id: str
+    agent_user_id: str  # our line, as a Photon User; replies are sent as this User
+
+
+@dataclass
+class _Conversation:
+    space_id: str
+    agent_user_id: str
+
+
 class PhotonAdapter:
-    BASE = "https://api.photon.chat/v1"  # TODO confirm onsite
+    BASE = "https://api.photon.codes/v1"
 
-    def __init__(self, api_key: str, from_number: str):
-        self.key, self.frm = api_key, from_number
-        self._http = httpx.AsyncClient(timeout=15, headers={"Authorization": f"Bearer {api_key}"})
+    def __init__(self, api_key: str, project_id: str, agent_handle: str = "", platform: str = "imessage"):
+        self.project, self.agent_handle, self.platform = project_id, agent_handle, platform
+        self._http = httpx.AsyncClient(base_url=f"{self.BASE}/projects/{project_id}", timeout=30,
+                                       headers={"Authorization": f"Bearer {api_key}"})
+        self._convos: dict[str, _Conversation] = {}
 
-    async def _post(self, path: str, payload: dict):
+    def remember(self, msg: Inbound) -> None:
+        self._convos[msg.handle] = _Conversation(msg.space_id, msg.agent_user_id)
+
+    async def _post(self, path: str, **kw) -> dict:
+        r = await self._http.post(path, **kw)
+        if r.is_error:
+            raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:300]}")
+        return r.json()
+
+    async def _conversation(self, to: str) -> _Conversation:
+        if to in self._convos:
+            return self._convos[to]
+        # No inbound message yet (e.g. a web run with a phone number). Only works
+        # from a dedicated line; shared lines reject unsolicited first messages.
+        if not self.agent_handle:
+            raise RuntimeError(f"no conversation with {to}; they must text the agent first (or set PHOTON_AGENT_HANDLE)")
+        users = []
+        for handle in (self.agent_handle, to):
+            u = await self._post("/users", json={"platform": self.platform, "handle": handle})
+            users.append(u["id"])
+        space = await self._post("/spaces", json={"platform": self.platform, "participantIds": users},
+                                 headers={"Idempotency-Key": f"roboforge-space:{self.agent_handle}:{to}"})
+        self._convos[to] = _Conversation(space["id"], users[0])
+        return self._convos[to]
+
+    async def _upload(self, media_url: str) -> str:
+        data, name = await _load_media(media_url)
+        ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        boundary = uuid.uuid4().hex
+        meta = json.dumps({"contentType": ctype, "sizeBytes": len(data), "filename": name}).encode()
+        body = (f"--{boundary}\r\nContent-Type: application/json\r\n\r\n").encode() + meta + \
+               (f"\r\n--{boundary}\r\nContent-Type: {ctype}\r\n\r\n").encode() + data + \
+               (f"\r\n--{boundary}--\r\n").encode()
+        att = await self._post("/attachments", content=body, headers={
+            "Content-Type": f'multipart/related; boundary="{boundary}"',
+            "Idempotency-Key": f"roboforge-att:{uuid.uuid4()}",
+        })
+        return att["id"]
+
+    async def _send(self, to: str, content: dict) -> None:
         try:
-            r = await self._http.post(f"{self.BASE}{path}", json=payload)
-            r.raise_for_status()
+            c = await self._conversation(to)
+            await self._post("/messages", json={"spaceId": c.space_id, "senderId": c.agent_user_id, "content": content},
+                             headers={"Idempotency-Key": f"roboforge-msg:{uuid.uuid4()}"})
         except Exception as e:
-            log.warning("photon send failed: %s", e)
+            log.warning("photon send to %s failed: %s", to, e)
 
     async def send_text(self, to: str, body: str) -> None:
-        await self._post("/messages", {"from": self.frm, "to": to, "text": body})
+        await self._send(to, _text(body))
 
     async def send_media(self, to: str, media_url: str, body: str = "") -> None:
-        await self._post("/messages", {"from": self.frm, "to": to, "text": body, "media_urls": [media_url]})
+        try:
+            att = {"type": "attachment", "attachmentId": await self._upload(media_url)}
+        except Exception as e:
+            log.warning("photon upload of %s failed, sending link instead: %s", media_url, e)
+            return await self.send_text(to, f"{body}\n{media_url}".strip())
+        await self._send(to, {"type": "group", "parts": [_text(body), att]} if body else att)
+
+
+def _text(body: str) -> dict:
+    return {"type": "text", "format": "plain", "text": body}
+
+
+async def _load_media(media_url: str) -> tuple[bytes, str]:
+    """Artifacts live under STORAGE_DIR; read them from disk instead of over HTTP."""
+    prefix = f"{config.BACKEND_BASE_URL}/artifacts/"
+    if media_url.startswith(prefix):
+        p = config.STORAGE_DIR / media_url[len(prefix):]
+        return p.read_bytes(), p.name
+    if media_url.startswith("file://"):
+        p = Path(media_url[len("file://"):])
+        return p.read_bytes(), p.name
+    async with httpx.AsyncClient(timeout=30) as h:
+        r = await h.get(media_url)
+        r.raise_for_status()
+        return r.content, media_url.rsplit("/", 1)[-1].split("?")[0] or "media"
+
+
+_messaging: MessagingAdapter | None = None
 
 
 def get_messaging() -> MessagingAdapter:
-    if config.PHOTON_API_KEY and config.PHOTON_NUMBER:
-        return PhotonAdapter(config.PHOTON_API_KEY, config.PHOTON_NUMBER)
-    return ConsoleAdapter()
+    global _messaging
+    if _messaging is None:
+        if config.PHOTON_API_KEY and config.PHOTON_PROJECT_ID:
+            _messaging = PhotonAdapter(config.PHOTON_API_KEY, config.PHOTON_PROJECT_ID, config.PHOTON_AGENT_HANDLE)
+        else:
+            _messaging = ConsoleAdapter()
+    return _messaging
 
 
-def parse_photon_webhook(payload: dict) -> tuple[str, str] | None:
-    """Return (from_number, text) from an inbound Photon webhook. Tolerant of shape."""
-    frm = payload.get("from") or payload.get("sender") or (payload.get("message") or {}).get("from")
-    txt = payload.get("text") or payload.get("body") or (payload.get("message") or {}).get("text")
-    if frm and txt:
-        return str(frm), str(txt)
-    return None
+def parse_photon_webhook(payload: dict) -> Inbound | None:
+    """Return the inbound message from a Photon `message.received` event, or None
+    for any other event (delivery updates, typing, reactions, attachments only)."""
+    if payload.get("type") != "message.received":
+        return None
+    m = (payload.get("data") or {}).get("object") or {}
+    sender, agent, space = m.get("sentBy") or {}, m.get("receivedBy") or {}, m.get("space") or {}
+    if sender.get("kind") == "agent":
+        return None
+    content = m.get("content") or {}
+    parts = content.get("parts", []) if content.get("type") == "group" else [content]
+    text = "\n".join(p["text"] for p in parts if p.get("type") == "text" and p.get("text")).strip()
+    if not (text and sender.get("handle") and space.get("id") and agent.get("id")):
+        return None
+    return Inbound(sender["handle"], text, m.get("id", ""), space["id"], agent["id"])
