@@ -198,7 +198,7 @@ def run(mjcf_xml: str, controller_src: str, robot_info: dict, iteration: int, ou
     gif_url = None
     if make_gif and frames:
         try:
-            gif = render_gif(model, frames[:: 2], out_dir / "run.gif")
+            gif = render_gif(model, frames[:: 2], out_dir / "run.gif", attempt=iteration)
             gif_url = url_for(gif) if gif else None
         except Exception as e:
             log.warning("gif render failed: %s", e)
