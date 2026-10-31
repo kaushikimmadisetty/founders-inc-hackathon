@@ -177,7 +177,7 @@ export function AssemblyViewer({ spec, parts, body, board, status }: { spec: Rob
   const ready = Boolean(parts && body);
   const named = pieces.filter((p) => p.label).length;
   return (
-    <div className="panel relative h-[420px] overflow-hidden">
+    <div className="panel relative h-[520px] overflow-hidden">
       <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
         <span className="rounded-lg bg-acc px-3 py-1 text-sm font-bold text-white">Assembly</span>
         <span className="text-xs text-slate-300">{ready ? `${named} components → ${spec?.template.replace(/_/g, " ")}` : (status === "planning" ? "planning…" : "waiting for parts and body…")}</span>
