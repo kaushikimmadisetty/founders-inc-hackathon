@@ -1,6 +1,7 @@
 "use client";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { identity, partFor } from "@/lib/partRefs";
+import { Html, Line } from "@react-three/drei";
+import { boardPiece, identity, partFor } from "@/lib/partRefs";
 import { CameraRig, PartTooltip, useViewport, ViewportTools, type PartHover, type PartInteraction } from "./ViewportControls";
 import { useMemo, useRef, useState } from "react";
 import { BlueprintFloor, StudioLights } from "./BlueprintFloor";
@@ -11,7 +12,7 @@ import { BoardArtifact, BodyArtifact, PartsSelection, RobotSpec } from "@/lib/ty
  *  window so they fly in one at a time. Units: metres, z up (MuJoCo frame). */
 
 export type Piece = {
-  id: string; label: string; price?: number;
+  id: string; label: string; ref?: string; price?: number;
   pos: [number, number, number]; size: [number, number, number];
   shape: "box" | "cyl" | "sphere"; rot?: [number, number, number];
   color: string; from: [number, number, number]; order: number; emissive?: string;
@@ -108,7 +109,16 @@ export function buildPieces(spec: RobotSpec | null, parts: PartsSelection | null
     pieces.push({ id: "gripL", label: grip?.name ?? "gripper", price: grip?.unit_price_usd, pos: [ax + reach + 0.02, 0.018, az + 0.02], size: [0.04, 0.006, 0.02], shape: "box", color: "#8b949e", from: [ax + 0.7, 0.2, 1.0], order: order++ });
     pieces.push({ id: "gripR", label: "", pos: [ax + reach + 0.02, -0.018, az + 0.02], size: [0.04, 0.006, 0.02], shape: "box", color: "#8b949e", from: [ax + 0.7, -0.2, 1.0], order });
   }
-  return pieces.map(p => ({ ...p, label: partFor(p.id, parts?.parts ?? [])?.name ?? (p.label || (identity(p.id).role === "chassis" ? "Printed chassis wall" : identity(p.id).role)) }));
+  // Connector blocks and any remaining BOM entries remain individually selectable.
+  const headerLines = board?.bom_lines.filter(line => /^J/i.test(line.ref)) ?? [];
+  const extras = board?.bom_lines.filter(line => boardPiece(line, parts?.parts ?? []).startsWith("bom:")) ?? [];
+  [...headerLines, ...extras].forEach((line, i) => {
+    const id = boardPiece(line, parts?.parts ?? []);
+    const x = L / 2 - pl / 2 - 0.012 - pl * .3 + (i % 4) * pl * .2;
+    const y = -pw * .36 + Math.floor(i / 4) * .009;
+    pieces.push({ id, label: line.part, price: line.unit_price_usd, pos: [x, y, pcbZ + .004], size: [.009, .007, .006], shape: "box", color: "#dadad0", from: [0, 0, .1 + i * .015], order: order++ });
+  });
+  return pieces.map(p => ({ ...p, ref: board?.bom_lines.find(line => boardPiece(line, parts?.parts ?? []) === p.id)?.ref ?? partFor(p.id, parts?.parts ?? [])?.ref ?? identity(p.id).ref, label: partFor(p.id, parts?.parts ?? [])?.name ?? (p.label || (identity(p.id).role === "chassis" ? "Printed chassis wall" : identity(p.id).role)) }));
 }
 
 const ease = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
@@ -119,7 +129,8 @@ function PieceMesh({ p, progress, total, selected, onSelect, onHover }: { p: Pie
   // stagger: piece k assembles over [start, start + 0.3]
   const start = pieceStart(p, total);
   const t = ease((progress - start) / 0.3);
-  const position: [number, number, number] = [p.pos[0] + p.from[0] * (1 - t), p.pos[1] + p.from[1] * (1 - t), p.pos[2] + p.from[2] * (1 - t)];
+  const offset = progress === 0 ? explodedOffset(p) : p.from;
+  const position: [number, number, number] = [p.pos[0] + offset[0] * (1 - t), p.pos[1] + offset[1] * (1 - t), p.pos[2] + offset[2] * (1 - t)];
   const geom = p.shape === "box" ? <boxGeometry args={p.size} /> : p.shape === "cyl" ? <cylinderGeometry args={[p.size[0], p.size[0], p.size[1], 28]} /> : <sphereGeometry args={[p.size[0], 16, 16]} />;
   const rot = p.rot ?? (p.shape === "cyl" ? [0, 0, 0] : [0, 0, 0]);
   const picked = !!selected && identity(selected).ref === identity(p.id).ref;
@@ -142,7 +153,28 @@ function PieceMesh({ p, progress, total, selected, onSelect, onHover }: { p: Pie
 /** Static by default; progress changes only during an explicit Build action. */
 export function RobotModel({ pieces, progress = 1.15, ...interaction }: { pieces: Piece[]; progress?: number } & PartInteraction) {
   const total = Math.max(...pieces.map(p => p.order), 1) + 1;
-  return <group>{pieces.map(p => <PieceMesh key={p.id} p={p} progress={progress} total={total} {...interaction} />)}</group>;
+  return <group>{pieces.map(p => <group key={p.id}><PieceMesh p={p} progress={progress} total={total} {...interaction} />{progress === 0 && <><Line points={[p.pos, explodedPosition(p)]} color="#8e9ba8" lineWidth={1} /><Html position={explodedPosition(p)} center zIndexRange={[15, 0]}><button className="exploded-label" onClick={e => { e.stopPropagation(); interaction.onSelect?.(p.id); }}>{p.ref ?? identity(p.id).ref}</button></Html></>}</group>)}</group>;
+}
+
+export function explodedOffset(p: Piece): [number, number, number] {
+  if (/^(motor|wheel)/.test(p.id)) return [0, Math.sign(p.pos[1]) * (p.id.startsWith("wheel") ? .15 : .075), 0];
+  if (p.id.startsWith("wall-x")) return [Math.sign(p.pos[0]) * .055, 0, 0];
+  if (p.id.startsWith("wall-y")) return [0, Math.sign(p.pos[1]) * .055, 0];
+  if (p.id === "floor" || p.id === "caster") return [0, 0, -.06];
+  if (p.id === "battery") return [-.11, 0, .07];
+  if (p.id === "pcb") return [0, 0, .10];
+  if (/^(mcu|drv|reg|imu|header|bom:)/.test(p.id)) return [0, 0, .18 + (p.order % 3) * .025];
+  return [.06 + (p.order % 4) * .045, 0, .15 + (p.order % 3) * .04];
+}
+function explodedPosition(p: Piece): [number, number, number] { const d = explodedOffset(p); return [p.pos[0] + d[0], p.pos[1] + d[1], p.pos[2] + d[2]]; }
+function isBoardPiece(p: Piece) { return /^(pcb$|mcu$|drv|reg$|imu$|header|bom:)/.test(p.id); }
+function BoardLabels({ pieces, board, parts, exploded, onSelect }: { pieces: Piece[]; board: BoardArtifact | null; parts: PartsSelection | null; exploded: boolean } & PartInteraction) {
+  return <>{board?.bom_lines.map(line => {
+    const p = pieces.find(piece => piece.id === boardPiece(line, parts?.parts ?? []));
+    if (!p) return null;
+    const position = exploded ? explodedPosition(p) : p.pos;
+    return <Html key={line.ref} position={[position[0], position[1], position[2] + p.size[2] / 2 + .003]} center zIndexRange={[16, 0]}><button className="board-label" title={`${line.ref} · ${line.part}`} onClick={e => { e.stopPropagation(); onSelect?.(p.id); }}>{line.ref}</button></Html>;
+  })}</>;
 }
 
 type ViewMode = "play" | "assembled" | "exploded";
@@ -168,6 +200,10 @@ export function AssemblyViewer({ spec, parts, body, board, className, onDone, se
   const localControls = useViewport();
   const controls = viewport ?? localControls;
   const [hover, setHover] = useState<PartHover>(null);
+  const boardOnly = controls.view.preset === "Board";
+  const shown = boardOnly ? pieces.filter(isBoardPiece) : pieces;
+  const pcb = pieces.find(p => p.id === "pcb");
+  const center: [number, number, number] = boardOnly && pcb ? pcb.pos : [0, 0, .04];
   return (
     <div className={`panel relative overflow-hidden ${className ?? "h-[520px]"}`}>
       <ViewportTools controls={controls} exploded={mode === "exploded"} onExplode={() => setMode(m => m === "exploded" ? "assembled" : "exploded")} />
@@ -178,8 +214,9 @@ export function AssemblyViewer({ spec, parts, body, board, className, onDone, se
       <Canvas onPointerMissed={() => onSelect?.(null)} shadows camera={{ position: [0.3, -0.36, 0.22], up: [0, 0, 1], fov: 38 }}>
         <StudioLights />
         <BlueprintFloor height={-((body?.wheel_diameter_mm ?? 60) / 2000)} />
-        <Player key={key} pieces={pieces} onDone={() => { setMode("assembled"); onDone?.(); }} mode={mode} selected={selected} onSelect={onSelect} onHover={setHover} />
-        <CameraRig view={controls.view} radius={mode === "exploded" ? 0.8 : Math.max(0.18, ...pieces.map(p => Math.hypot(...p.pos) + Math.max(...p.size) / 2))} />
+        <Player key={`${key}-${boardOnly}`} pieces={shown} onDone={() => { setMode("assembled"); onDone?.(); }} mode={mode} selected={selected} onSelect={onSelect} onHover={setHover} />
+        {boardOnly && <BoardLabels pieces={shown} board={board} parts={parts} exploded={mode === "exploded"} onSelect={onSelect} />}
+        <CameraRig key={`${boardOnly}-${mode === "exploded"}`} view={controls.view} center={mode === "exploded" ? [center[0], center[1], center[2] + .08] : center} radius={mode === "exploded" ? .42 : boardOnly && pcb ? Math.hypot(pcb.size[0], pcb.size[1]) * .65 : Math.max(0.18, ...pieces.map(p => Math.hypot(...p.pos) + Math.max(...p.size) / 2))} />
       </Canvas>
     </div>
   );

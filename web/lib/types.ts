@@ -6,6 +6,7 @@ export type RunStatus = "planning" | "building" | "simulating" | "revising" | "p
 export type RouteTo = "parts" | "body" | "board" | "brain" | "none";
 
 export interface Part {
+  ref?: string; purpose?: string;
   role: string; qty: number; name: string; mass_g: number;
   stall_torque_nm?: number | null; rated_rpm?: number | null; stall_current_a?: number | null;
   dims_mm: [number, number, number]; unit_price_usd: number; url: string; source: "firecrawl" | "catalog";

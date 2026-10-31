@@ -65,7 +65,7 @@ export function Director({ run }: { run: RunState | null }) {
       <WorkspaceToolbar controls={controls} onClear={() => select(null)} onBuildPack={() => choosePanel(true)} panelVisible={panelVisible} onTogglePanel={() => setPanelVisible(v => !v)} />
       <div className="cad-viewport">
         <div className="scene-layer" key={stageKey(stage)}>
-          {report ? <Viewer3D report={report} spec={run?.spec ?? null} body={run?.body ?? null} parts={run?.parts} board={run?.board} className="h-full" viewport={controls} still={finished || stage.kind !== "sim" || played.current.has(report.iteration)} onPlaybackEnd={() => { played.current.add(report.iteration); }} selected={selected} onSelect={select} />
+          {report && controls.view.preset !== "Board" ? <Viewer3D report={report} spec={run?.spec ?? null} body={run?.body ?? null} parts={run?.parts} board={run?.board} className="h-full" viewport={controls} still={true} onPlaybackEnd={() => { played.current.add(report.iteration); }} selected={selected} onSelect={select} />
             : <AssemblyViewer spec={run?.spec ?? null} parts={run?.parts ?? null} body={run?.body ?? null} board={run?.board ?? null} className="h-full" viewport={controls} selected={selected} onSelect={select} />}
         </div>
         {!run && <p className="viewport-message">Connecting to your robot…</p>}

@@ -52,7 +52,7 @@ export function Viewer3D({ report, spec, body, parts, board, className, selected
         <Robot traj={traj} wheelR={wheelR} template={traj?.template ?? spec?.template ?? "diff_drive_rover"} playing={playing} replay={replay} holdLast={still && replay === 0} onEnd={() => { setPlaying(false); onPlaybackEnd?.(); }}>
           <RobotModel pieces={pieces} progress={exploded ? 0 : 1.15} selected={selected} onSelect={onSelect} onHover={setHover} />
         </Robot>
-        <CameraRig key={traj ? "loaded" : "pending"} view={controls.view} center={framing.center} radius={exploded ? Math.max(1, framing.radius) : framing.radius} />
+        <CameraRig key={`${traj ? "loaded" : "pending"}-${exploded}`} view={controls.view} center={framing.center} radius={exploded ? Math.max(1, framing.radius) : framing.radius} />
       </Canvas>
       {!traj && <p className="pointer-events-none absolute bottom-28 left-24 rounded-lg bg-white/90 px-3 py-2 text-sm text-slate-600">{report.trajectory_url && !trajectoryError ? "Loading trajectory…" : "Trajectory unavailable · inspect the assembled model"}</p>}
     </div>

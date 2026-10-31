@@ -5,14 +5,14 @@ import { OrbitControls, OrthographicCamera, PerspectiveCamera } from "@react-thr
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 
-export type ViewPreset = "3D" | "Top" | "Ortho" | "Front" | "Right";
+export type ViewPreset = "3D" | "Top" | "Ortho" | "Board" | "Front" | "Right";
 export function useViewport() {
   const [view, setView] = useState({ preset: "3D" as ViewPreset, zoom: 1, revision: 0 });
   const snap = (preset: ViewPreset) => setView(v => ({ preset, zoom: 1, revision: v.revision + 1 }));
   const zoom = (factor: number) => setView(v => ({ ...v, zoom: THREE.MathUtils.clamp(v.zoom * factor, 0.2, 4), revision: v.revision + 1 }));
   return { view, snap, zoom };
 }
-export function ViewportTools({ controls, exploded, onExplode }: { controls: ReturnType<typeof useViewport>; exploded: boolean; onExplode: () => void }) {
+export function ViewportTools({ controls, exploded, onExplode, hideExplode = false }: { controls: ReturnType<typeof useViewport>; exploded: boolean; onExplode: () => void; hideExplode?: boolean }) {
   return <>
     <div className="view-tools">
       <div className="view-cube" aria-label="View cube"><button className="cube-top" onClick={() => controls.snap("Top")} aria-label="Top view">TOP</button><button className="cube-front" onClick={() => controls.snap("Front")} aria-label="Front view">FRONT</button><button className="cube-right" onClick={() => controls.snap("Right")} aria-label="Right view">RIGHT</button></div>
@@ -20,15 +20,15 @@ export function ViewportTools({ controls, exploded, onExplode }: { controls: Ret
       <button className="tool-button" title="Fit model" aria-label="Fit model to screen" onClick={() => controls.snap(controls.view.preset)}><ToolIcon kind="fit" /></button>
       <button className="tool-button" title="Zoom in" aria-label="Zoom in" onClick={() => controls.zoom(1.25)}><ToolIcon kind="plus" /></button>
       <button className="tool-button" title="Zoom out" aria-label="Zoom out" onClick={() => controls.zoom(0.8)}><ToolIcon kind="minus" /></button>
-      <button className={`tool-button ${exploded ? "text-acc ring-2 ring-blue-200" : ""}`} title="Explode assembly" aria-label="Toggle exploded assembly" aria-pressed={exploded} onClick={onExplode}><ToolIcon kind="explode" /></button>
+      {!hideExplode && <button className={`tool-button ${exploded ? "text-acc ring-2 ring-blue-200" : ""}`} title="Explode assembly" aria-label="Toggle exploded assembly" aria-pressed={exploded} onClick={onExplode}><ToolIcon kind="explode" /></button>}
     </div>
   </>;
 }
-export function WorkspaceToolbar({ controls, onClear, onBuildPack, panelVisible, onTogglePanel }: { controls: ReturnType<typeof useViewport>; onClear: () => void; onBuildPack: () => void; panelVisible: boolean; onTogglePanel: () => void }) {
+export function WorkspaceToolbar({ controls, onClear, onBuildPack, panelVisible, onTogglePanel, asset = false }: { controls: ReturnType<typeof useViewport>; onClear: () => void; onBuildPack: () => void; panelVisible: boolean; onTogglePanel: () => void; asset?: boolean }) {
   return <div className="workspace-toolbar">
-    <div className="toolbar-left"><button title="Clear selection" aria-label="Clear selection" onClick={onClear}>⌖</button><button title="Reset view" aria-label="Reset view" onClick={() => controls.snap("3D")}><ToolIcon kind="home" /></button><button title="Fit model" aria-label="Fit model" onClick={() => controls.snap(controls.view.preset)}><ToolIcon kind="fit" /></button><span className="toolbar-divider" /><button title="Build pack" aria-label="Open build pack" onClick={onBuildPack}>⇩</button></div>
-    <div className="viewport-presets segment flex" aria-label="Camera projection">{(["3D", "Top", "Ortho"] as const).map(p => <button key={p} aria-pressed={controls.view.preset === p} onClick={() => controls.snap(p)} className={controls.view.preset === p ? "active" : ""}>{p}</button>)}</div>
-    <div className="toolbar-right"><button title="This robot's build pack" aria-label="Open build pack" onClick={onBuildPack}>◫</button><button title="Toggle parts panel" aria-label="Toggle parts panel" aria-pressed={panelVisible} onClick={onTogglePanel}>▥</button></div>
+    <div className="toolbar-left"><button title="Clear selection" aria-label="Clear selection" onClick={onClear}>⌖</button><button title="Reset view" aria-label="Reset view" onClick={() => controls.snap("3D")}><ToolIcon kind="home" /></button><button title="Fit model" aria-label="Fit model" onClick={() => controls.snap(controls.view.preset)}><ToolIcon kind="fit" /></button><span className="toolbar-divider" /><button title={asset ? "Asset details" : "Build pack"} aria-label={asset ? "Open asset details" : "Open build pack"} onClick={onBuildPack}>⇩</button></div>
+    <div className="viewport-presets segment flex" aria-label="Camera projection">{(asset ? ["3D", "Top", "Ortho"] as const : ["3D", "Top", "Ortho", "Board"] as const).map(p => <button key={p} aria-pressed={controls.view.preset === p} onClick={() => controls.snap(p)} className={controls.view.preset === p ? "active" : ""}>{p}</button>)}</div>
+    <div className="toolbar-right"><button title={asset ? "Asset details" : "This robot's build pack"} aria-label={asset ? "Open asset details" : "Open build pack"} onClick={onBuildPack}>◫</button><button title={asset ? "Toggle asset details" : "Toggle parts panel"} aria-label={asset ? "Toggle asset details" : "Toggle parts panel"} aria-pressed={panelVisible} onClick={onTogglePanel}>▥</button></div>
   </div>;
 }
 function ToolIcon({ kind }: { kind: string }) {
@@ -57,7 +57,7 @@ export function CameraRig({ view, radius = 0.23, center = [0, 0, 0.04] }: { view
     const clicked = previousRevision.current !== view.revision;
     if (!initialized.current || clicked) {
       const target = new THREE.Vector3(...center);
-      const dir = view.preset === "Top" ? new THREE.Vector3(0, -0.0001, 1) : view.preset === "Front" ? new THREE.Vector3(0, -1, 0.0001) : view.preset === "Right" ? new THREE.Vector3(1, 0, 0.0001) : new THREE.Vector3(0.9, -1.15, 0.85).normalize();
+      const dir = (view.preset === "Top" || view.preset === "Board") ? new THREE.Vector3(0, -0.0001, 1) : view.preset === "Front" ? new THREE.Vector3(0, -1, 0.0001) : view.preset === "Right" ? new THREE.Vector3(1, 0, 0.0001) : new THREE.Vector3(0.9, -1.15, 0.85).normalize();
       destination.current.copy(target).addScaledVector(dir, distance);
       destinationTarget.current.copy(target);
       start.current.copy(camera.position); startTarget.current.copy(c.target);
