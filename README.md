@@ -1,6 +1,6 @@
 # RoboForge — text to robot
 
-▶ **[Watch the 30-second explainer](media/roboforge-explainer.mp4)**
+▶ **[Watch the 30-second explainer](web/public/roboforge-explainer.mp4)**
 
 Text a robot idea from your phone. Get back a robot designed from real parts, tested in physics simulation, ready to manufacture (BOM, PCB, printable chassis), plus a GIF of it doing the job.
 

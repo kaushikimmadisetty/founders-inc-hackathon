@@ -8,7 +8,7 @@ export interface GalleryItem {
   stars?: number; popularity?: number;
 }
 export interface Gallery { robots: GalleryItem[]; assets: GalleryItem[]; categories: Record<string, number>; counts: { robots: number; assets: number; makers: number }; warming: boolean }
-export function mediaUrl(url: string) { return new URL(url, `${BACKEND}/`).href; }
+export function mediaUrl(url: string) { return new URL(url, new URL(`${BACKEND}/`, window.location.origin)).href; }
 export function useGallery() {
   const [data, setData] = useState<Gallery | null>(null);
   const [error, setError] = useState(false);
