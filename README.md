@@ -54,6 +54,8 @@ Convex (optional, enables live agent lanes): `cd web && npx convex dev`, then pu
 
 Photon (optional, enables iMessage): in the Photon dashboard, assign a shared iMessage line to the phone you'll text from and create a project API key. Set `PHOTON_API_KEY` and `PHOTON_PROJECT_ID` in `.env`, then add a webhook destination for `message.received` pointing at `$BACKEND_BASE_URL/webhooks/photon` (needs a public URL, e.g. a tunnel). Text the assigned number to start a run; replies go back in the same conversation. A shared line can only reply, so texting someone first needs a dedicated line and `PHOTON_AGENT_HANDLE`. Without Photon keys, outbound texts are logged to the console.
 
+One public URL for phone demos: the web app proxies `/runs`, `/artifacts`, `/assets`, `/webhooks` and `/health` to the backend (`BACKEND_INTERNAL_URL`, default `http://localhost:8000`). Set `NEXT_PUBLIC_BACKEND_URL=` (empty) in `web/.env.local`, tunnel port 3000 only (`npx -y localtunnel --port 3000`), and set both `PUBLIC_BASE_URL` and `BACKEND_BASE_URL` in `.env` to the tunnel URL so the links and GIFs in texts open on a phone. Point the Photon webhook at `<tunnel URL>/webhooks/photon`. The tunnel URL changes each time it restarts.
+
 Tests (offline, no keys needed):
 
 ```bash
