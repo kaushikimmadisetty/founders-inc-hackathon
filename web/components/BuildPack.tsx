@@ -25,11 +25,11 @@ export function BuildPack({ run }: { run: RunState | null }) {
       </div>
       <div className="max-h-[420px] overflow-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase tracking-wider text-slate-400"><tr><th className="py-1">Part</th><th>Qty</th><th className="text-right">Price</th></tr></thead>
+          <thead className="text-left text-sm uppercase tracking-wider text-slate-600"><tr><th className="py-1">Part</th><th>Qty</th><th className="text-right">Price</th></tr></thead>
           <tbody>
             {bom.map((p) => (
               <tr key={p.role + p.name} className="border-t border-line">
-                <td className="py-1.5"><a href={p.url} target="_blank" rel="noreferrer" className="hover:text-acc">{p.name}</a><span className="ml-1 text-xs text-slate-500">{p.role}</span>{p.source === "firecrawl" && <span className={`ml-1 text-[10px] ${p.in_stock === false ? "text-bad" : "text-ok"}`}>{p.in_stock === false ? "out of stock" : `live · ${p.vendor ?? ""}`}</span>}</td>
+                <td className="py-1.5"><a href={p.url} target="_blank" rel="noreferrer" className="hover:text-acc">{p.name}</a><span className="ml-1 text-sm text-slate-600">{p.role}</span>{p.source === "firecrawl" && <span className={`ml-1 text-sm ${p.in_stock === false ? "text-bad" : "text-ok"}`}>{p.in_stock === false ? "out of stock" : `live · ${p.vendor ?? ""}`}</span>}</td>
                 <td>{p.qty}</td>
                 <td className="text-right">${(p.unit_price_usd * p.qty).toFixed(2)}</td>
               </tr>
@@ -38,10 +38,10 @@ export function BuildPack({ run }: { run: RunState | null }) {
         </table>
       </div>
       <div className="flex items-end justify-between border-t border-line pt-3">
-        <span className="text-slate-400">Total BOM</span>
+        <span className="text-slate-600">Total BOM</span>
         <span className="text-3xl font-black">${run?.parts?.total_usd.toFixed(2) ?? "—"}</span>
       </div>
-      {run?.board && <p className="text-xs text-slate-500">PCB provider: {run.board.provider}{run.board.provider === "fallback" && " (reference carrier board, HeyPCB export pending)"}</p>}
+      {run?.board && <p className="text-sm text-slate-600">PCB provider: {run.board.provider}{run.board.provider === "fallback" && " (reference carrier board, HeyPCB export pending)"}</p>}
     </aside>
   );
 }

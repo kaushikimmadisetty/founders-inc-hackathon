@@ -32,40 +32,40 @@ export default function Home() {
   }
 
   return (
-    <main className="relative isolate min-h-svh overflow-hidden bg-ink text-white">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_75%_35%,#172b4d_0%,#0b0d12_65%)]" />
+    <main className="relative isolate min-h-svh overflow-hidden bg-ink text-slate-900">
       <header className="relative z-10 mx-auto flex max-w-[1600px] items-center justify-between px-6 py-6 md:px-12">
-        <span className="text-xl font-black tracking-tight">ROBO<span className="text-acc">FORGE</span></span>
-        <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Idea → physics → reality</span>
+        <span className="flex items-center gap-3"><span className="logo-mark">R</span><span className="font-serif text-3xl">RoboForge</span></span>
+        <span className="rounded-full border border-line bg-white px-4 py-2 text-sm text-slate-600">Idea → physics → reality</span>
       </header>
       <div className="mx-auto grid max-w-[1600px] items-center px-6 pb-10 md:px-12 lg:min-h-[calc(100svh-90px)] lg:grid-cols-[1.15fr_1fr]">
         <section className="relative z-10 pt-8 lg:py-12">
           <p className="mb-5 text-sm font-semibold uppercase tracking-[0.22em] text-acc">Real parts. Real physics.</p>
-          <h1 className="max-w-4xl text-[clamp(2.7rem,5.6vw,6.5rem)] font-black leading-[0.98] tracking-[-0.055em]">Text a robot idea.<br /><span className="text-slate-300">Get a tested robot back.</span></h1>
-          <p className="mt-6 max-w-lg text-lg text-slate-400 md:text-xl">Designed from real parts. Tested in simulation. Delivered to your phone.</p>
-          <div className="mt-7 border-l-2 border-acc pl-5">
-            <p className="text-xs uppercase tracking-widest text-slate-400">Text your idea · iMessage</p>
-            <a href={phone === "(number coming)" ? undefined : `sms:${phone}`} className="mt-1 block break-words text-3xl font-black tracking-tight sm:text-4xl xl:text-5xl">{phone}</a>
-            <p className="mt-2 text-sm text-slate-400">Get a simulation GIF and your complete build pack.</p>
+          <h1 className="max-w-4xl text-[clamp(2.7rem,5.6vw,6.5rem)] font-serif font-normal leading-[1.02] tracking-[-0.035em]">Text a robot idea.<br /><span className="text-[#5b7fb5]">Get a tested robot back.</span></h1>
+          <p className="mt-6 max-w-lg text-lg text-slate-600 md:text-xl">Designed from real parts. Tested in simulation. Delivered to your phone.</p>
+          <div className="mt-7 border-l-2 border-blue-200 pl-5">
+            <p className="text-sm uppercase tracking-widest text-slate-600">Text your idea · iMessage</p>
+            <a href={phone === "(number coming)" ? undefined : `sms:${phone}`} className="mt-1 block break-words text-4xl font-semibold tracking-tight sm:text-5xl xl:text-6xl">{phone}</a>
+            <p className="mt-2 text-sm text-slate-600">Get a simulation GIF and your complete build pack.</p>
           </div>
-          <div className="mt-8 rounded-2xl border border-line bg-panel/90 p-4 shadow-2xl md:p-5">
-            <label htmlFor="robot-prompt" className="mb-3 block text-xs uppercase tracking-widest text-slate-400">Or forge it right here</label>
+          <div className="mt-8 rounded-2xl border border-line bg-panel/90 p-4 shadow-[0_8px_36px_#263c5510] md:p-5">
+            <label htmlFor="robot-prompt" className="mb-3 block text-sm uppercase tracking-widest text-slate-600">Or forge it right here</label>
             <form onSubmit={(e) => { e.preventDefault(); void go(); }} className="flex flex-col gap-3 sm:flex-row">
               <input id="robot-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)}
                 className="min-w-0 flex-1 rounded-lg border border-line bg-ink px-4 py-4 text-base outline-none focus:border-acc" placeholder="Describe your robot…" />
-              <button type="submit" disabled={busy || !prompt.trim()} className="shrink-0 rounded-lg bg-acc px-6 py-4 text-lg font-bold transition hover:brightness-110 disabled:opacity-50">{busy ? "Starting…" : "Forge it ↗"}</button>
+              <button type="submit" disabled={busy || !prompt.trim()} className="shrink-0 rounded-lg bg-acc px-6 py-4 text-lg font-semibold text-white transition hover:brightness-110 disabled:opacity-50">{busy ? "Starting…" : "Forge it ↗"}</button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
-              {EXAMPLES.map((e) => <button key={e} onClick={() => setPrompt(e)} className="rounded-full border border-line px-3 py-2 text-left text-xs text-slate-300 transition hover:border-acc hover:text-white">{e}</button>)}
+              {EXAMPLES.map((e) => <button key={e} onClick={() => setPrompt(e)} className="rounded-full border border-line bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-acc hover:text-acc">{e}</button>)}
             </div>
             {err && <p role="alert" className="mt-3 break-words text-bad">{err}</p>}
           </div>
         </section>
         <section className="relative h-[360px] sm:h-[480px] lg:h-[min(80svh,850px)]" aria-label="Sample robot preview">
           <div className="absolute -inset-x-10 inset-y-0 lg:-inset-x-16"><Hero3D /></div>
+          <div className="pointer-events-none absolute left-5 top-6 rounded-2xl border border-line bg-white/90 px-4 py-3 shadow-sm"><p className="text-sm font-medium">Mecanum arm</p><p className="mt-1 text-sm text-slate-600">220 × 170 mm · sample assembly</p></div>
           <div className="pointer-events-none absolute bottom-3 left-0 right-0 text-center">
-            <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Mecanum arm / sample build</p>
-            <p className="mt-2 text-sm text-slate-500">4-wheel drive · onboard vision · precision gripper</p>
+            <p className="mx-auto inline-flex rounded-full border border-line bg-white px-4 py-2 text-sm text-slate-700">Mecanum arm / sample build</p>
+            <p className="mt-2 text-sm text-slate-600">4-wheel drive · onboard vision · precision gripper</p>
           </div>
         </section>
       </div>

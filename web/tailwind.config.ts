@@ -3,7 +3,8 @@ export default {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      colors: { ink: "#0b0d12", panel: "#141822", line: "#242a38", acc: "#3b82f6", ok: "#22c55e", bad: "#ef4444", warn: "#f59e0b" },
+      fontFamily: { sans: ["var(--font-sans)", "sans-serif"], serif: ["var(--font-serif)", "Georgia", "serif"] },
+      colors: { ink: "#f7f8fa", panel: "#ffffff", line: "#e6e8ee", acc: "#3b82f6", ok: "#15803d", bad: "#c24140", warn: "#a16207" },
     },
   },
   plugins: [],

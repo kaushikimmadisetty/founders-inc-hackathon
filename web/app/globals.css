@@ -2,11 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
-body { @apply bg-ink text-slate-100 antialiased; }
-.panel { @apply rounded-xl border border-line bg-panel; }
+:root { color-scheme: light; }
+body { @apply bg-ink text-slate-900 antialiased; }
+.panel { @apply rounded-2xl border border-line bg-panel shadow-[0_3px_20px_rgba(35,55,80,0.04)]; }
 .pill { @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold uppercase tracking-wide; }
 
 @keyframes fadein { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 
 @keyframes confetti { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(80vh) rotate(720deg); opacity: 0; } }
+
+button, input, a.pill { min-height: 36px; }
+button { touch-action: manipulation; }
+:focus-visible { outline: 2px solid #3b82f6; outline-offset: 3px; }
+button:disabled { cursor: not-allowed; }
+::selection { background: #dbeafe; }
+
+.logo-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: #223b54; color: white; font-weight: 700; font-size: 16px; box-shadow: inset 0 0 0 3px #ffffff20; }
+.cad-workspace { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0,1fr) 390px; grid-template-rows: minmax(0,1fr) auto; gap: 12px; padding: 12px; }
+.cad-viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: 20px; }
+.cad-viewport > .panel { border: 0; border-radius: 20px; }
+.step-tape { grid-column: 1 / -1; }
+.segment { border-radius: 12px; padding: 3px; background: #f1f3f6; gap: 3px; }
+.segment button { border-radius: 9px; padding: 6px 12px; font-size: 14px; color: #5b6472; }
+.segment button.active { background: white; color: #111827; box-shadow: 0 1px 5px #142d4612; }
+.stage-overlay { position: absolute; top: 80px; right: 16px; width: min(380px, calc(100% - 100px)); max-height: calc(100% - 200px); overflow: auto; pointer-events: none; }
+.floating-card { pointer-events: auto; padding: 22px; border: 1px solid #e6e8ee; border-radius: 20px; background: #fffffff0; box-shadow: 0 12px 45px #273b5510; backdrop-filter: blur(16px); animation: fadein .35s ease-out; }
+.eyebrow { margin-bottom: 10px; font-size: 14px; font-weight: 600; color: #586779; }
+.review-card { border-color: #efd8c4; background: #fffdf8f5; }
+.cad-ask { position: absolute; bottom: 58px; left: 50%; transform: translateX(-50%); width: min(490px, calc(100% - 36px)); z-index: 20; }
+.ask-pill { display: flex; align-items: center; gap: 6px; padding: 7px; border: 1px solid #e1e6ee; border-radius: 32px; background: #fffffff5; box-shadow: 0 6px 24px #223a5514; }
+.cad-readout { position: absolute; right: 14px; bottom: 12px; display: flex; gap: 6px; font-size: 14px; }
+.part-card { overflow: hidden; border: 1px solid #e6e8ee; border-radius: 16px; background: white; transition: border-color .2s, box-shadow .2s; }
+.part-card:hover, .part-card.selected { border-color: #8fb3e8; box-shadow: 0 0 0 2px #dbeafe; }
+.part-thumb { display: grid; place-items: center; height: 110px; background: radial-gradient(ellipse at center,#f0f3f6, #fafbfc 70%); overflow: hidden; }
+.iso-part { display: block; position: relative; width: 60px; height: 36px; background: linear-gradient(135deg,#cbd0d6,#878e98); transform: rotateX(50deg) rotateZ(-35deg); box-shadow: -8px 10px 0 #626c78, -16px 20px 12px #28384b20; border: 1px solid #bfc6cd; }
+.iso-part i { position: absolute; inset: 7px 15px; background: #343a44; border: 2px solid #a1aab6; }
+.iso-part b { position: absolute; width: 24px; height: 4px; right: -18px; top: 15px; background: #b8bcc4; }
+.part-wheel .iso-part, .part-caster .iso-part { border-radius: 50%; background: #1b1d22; width: 62px; height: 62px; box-shadow: -6px 9px 0 #30333a, -14px 18px 12px #28384b20; }
+.part-wheel .iso-part i, .part-caster .iso-part i { border-radius: 50%; inset: 15px; background: #b8bcc4; }
+.part-battery .iso-part { background: #30343c; border-left: 7px solid #c6a950; }
+.part-mcu .iso-part, .part-motor_driver .iso-part, .part-imu .iso-part, .part-tof .iso-part, .part-regulator .iso-part { background: #1f6b45; border: 3px dotted #bdac7c; box-shadow: -3px 4px 0 #13482e, -12px 18px 12px #28384b20; }
+@media (min-width: 1600px) { .cad-workspace { grid-template-columns: minmax(0,1fr) 420px; } }
+@media (max-width: 1050px) { .cad-workspace { grid-template-columns: minmax(0,1fr) 310px; } .part-thumb { height: 85px; } .stage-overlay { width: min(320px, calc(100% - 90px)); } }
+@media (max-width: 720px) { .cad-workspace { grid-template-columns: minmax(0,1fr) 230px; gap: 6px; padding: 6px; } .parts-panel .grid-cols-2 { grid-template-columns: 1fr; } .parts-panel > div:first-child .grid-cols-2 { grid-template-columns: 1fr 1fr; } .stage-overlay { left: 8px; right: 8px; top: 125px; width: auto; } .floating-card { padding: 14px; } .floating-card h2 { font-size: 28px; } .step-tape { overflow-x: auto; } }
+@media (max-width: 520px) { .cad-workspace { grid-template-columns: minmax(0,1fr); } .parts-panel { position: absolute; right: 8px; top: 76px; width: 220px; max-height: 42vh; z-index: 25; } .parts-panel:focus-within, .parts-panel:hover { max-height: 72vh; } .stage-overlay { top: 170px; width: calc(100% - 16px); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+.viewport-presets { position: absolute; z-index: 15; top: 14px; left: 50%; transform: translateX(-50%); border: 1px solid #e6e8ee; box-shadow: 0 2px 12px #253c5310; }
+.view-tools { position: absolute; top: 18px; left: 16px; z-index: 15; display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.tool-button { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #e6e8ee; border-radius: 50%; background: white; box-shadow: 0 2px 6px #233b5310; color: #536273; }
+.tool-button:hover { background: #eff6ff; color: #2563eb; }
+.view-cube { position: relative; width: 68px; height: 76px; margin-bottom: 8px; }
+.view-cube button { position: absolute; min-height: 36px; width: 43px; font-size: 14px; letter-spacing: -.8px; border: 1px solid #cbd5e1; color: #576579; box-shadow: inset 0 0 8px #ffffff99; }
+.cube-top { top: 0; left: 12px; transform: rotate(-30deg) skewX(30deg) scaleY(.8); background: #fff; }
+.cube-front { top: 31px; left: 0; transform: skewY(30deg) scaleX(.8); background: #e4eaf0; }
+.cube-right { top: 31px; left: 34px; transform: skewY(-30deg) scaleX(.8); background: #f0f4f8; }
+.assembly-modes { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; white-space: nowrap; border: 1px solid #e6e8ee; }
+.viewport-status { position: absolute; top: 66px; left: 100px; z-index: 10; padding: 7px 12px; border: 1px solid #e6e8ee; border-radius: 10px; background: #ffffffde; font-size: 14px; }

@@ -4,6 +4,7 @@ import { RunState, SimReport, CriticVerdict } from "@/lib/types";
 import { AssemblyViewer } from "./Robot3D";
 import { Viewer3D } from "./Viewer3D";
 import { BuildPack } from "./BuildPack";
+import { PartsPanel } from "./PartsPanel";
 import { TweakBox } from "./TweakBox";
 
 /** Sequences a run into one centre-stage scene at a time. Stages are derived
@@ -51,6 +52,7 @@ export function Director({ run }: { run: RunState | null }) {
   const stages = useMemo(() => stagesFor(run), [run]);
   const [idx, setIdx] = useState(0);
   const [auto, setAuto] = useState(true);
+  const [assembledAt, setAssembledAt] = useState<number | null>(null);
   const stage = stages[Math.min(idx, stages.length - 1)];
   const isReady = ready(stage, run);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,15 +66,47 @@ export function Director({ run }: { run: RunState | null }) {
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [idx, auto, isReady, stage.kind, stages.length]);
 
-  const next = () => setIdx((i) => Math.min(i + 1, stages.length - 1));
-  const prev = () => setIdx((i) => Math.max(i - 1, 0));
+  // Assembly may finish before the backend publishes its first report. Keep
+  // completion latched so polling or resuming auto-play can advance later.
+  useEffect(() => {
+    if (auto && isReady && stage.kind === "assemble" && assembledAt === idx && idx < stages.length - 1) {
+      setAssembledAt(null); setIdx(i => i + 1);
+    }
+  }, [auto, isReady, stage.kind, assembledAt, idx, stages.length]);
+  const jump = (i: number) => { setAssembledAt(null); setIdx(i); };
+  const next = () => jump(Math.min(idx + 1, stages.length - 1));
+  const prev = () => jump(Math.max(idx - 1, 0));
 
+  const [selected, setSelected] = useState<string | null>(null);
+  const [spotlight, setSpotlight] = useState(0);
+  useEffect(() => {
+    if (stage.kind !== "parts") return;
+    setSpotlight(0);
+    const id = setInterval(() => setSpotlight(i => (i + 1) % Math.max(1, run?.parts?.parts.length ?? 1)), 650);
+    return () => clearInterval(id);
+  }, [stage.kind, run?.parts?.parts.length]);
+  const report = stage.kind === "sim" || stage.kind === "verdict" ? stage.report : stage.kind === "done" ? run?.reports.at(-1) : undefined;
+  const focusLeft = stage.kind !== "sim" && stage.kind !== "assemble" || (stage.kind === "assemble" && !!stage.verdict);
   return (
-    <div className="flex min-h-[calc(100vh-120px)] flex-col gap-4">
-      <div className="flex-1">
-        {!isReady ? <Waiting stage={stage} run={run} /> : <StageView stage={stage} run={run!} onAssembled={() => auto && next()} />}
+    <div className="cad-workspace">
+      <div className="cad-viewport">
+        {report ? <Viewer3D key={`sim-${report.iteration}`} report={report} spec={run?.spec ?? null} body={run?.body ?? null} parts={run?.parts} board={run?.board} className="h-full" focusLeft={focusLeft} selected={selected} onSelect={setSelected} />
+          : <AssemblyViewer key={stage.kind === "assemble" ? `assembly-${stage.iteration}` : "preview"} spec={run?.spec ?? null} parts={run?.parts ?? null} body={run?.body ?? null} board={run?.board ?? null} status={run?.status} className="h-full" focusLeft={focusLeft} preview={stage.kind !== "assemble"} selected={selected} onSelect={setSelected} onDone={() => { if (stage.kind === "assemble" && isReady) setAssembledAt(idx); }} />}
+        <div className="stage-overlay" aria-live="polite">
+          {!isReady ? <div className="floating-card"><p className="eyebrow">Agents at work</p><h2 className="font-serif text-3xl">{!run ? "Connecting to the workshop…" : stage.kind === "plan" ? "Reading your idea…" : stage.kind === "parts" ? "Sourcing real components…" : "Generating the chassis…"}</h2></div>
+          : stage.kind === "plan" && run?.spec ? <div className="floating-card"><p className="eyebrow">01 / Design intent</p><h2 className="font-serif text-4xl">{TEMPLATE_LABEL[run.spec.template]}</h2><p className="mt-3 text-slate-600">{run.spec.task.description}</p><div className="mt-4 flex flex-wrap gap-2"><span className="pill bg-ink">≤ {run.spec.constraints.max_height_mm} mm</span><span className="pill bg-ink">${run.spec.constraints.budget_usd} budget</span></div><p className="mt-3 text-sm text-slate-600">{run.spec.rationale}</p></div>
+          : stage.kind === "parts" ? <div className="floating-card"><p className="eyebrow">02 / Sourced for this build</p><h2 className="font-serif text-4xl">Real parts. Ready to assemble.</h2><p className="mt-3 text-slate-600">{run?.parts?.parts.length} components · ${run?.parts?.total_usd.toFixed(2)} BOM</p><p className="mt-2 text-sm text-slate-600">Select any part to inspect its specifications.</p></div>
+          : stage.kind === "verdict" ? <div className="floating-card review-card"><p className="eyebrow text-bad">Attempt {stage.report.iteration} / Critic review</p><h2 className="text-4xl font-semibold tracking-tight text-bad">Needs a closer look.</h2><p className="mt-4 text-xl font-medium">{stage.verdict.summary}</p><p className="mt-3 text-slate-600">{stage.report.failure_detail}</p><div className="mt-4 rounded-xl bg-amber-50 p-4"><p className="text-sm font-semibold text-warn">Route → {stage.verdict.route_to} agent</p><p className="mt-2">{stage.verdict.instruction}</p></div><button onClick={next} className="mt-4 w-full rounded-xl bg-acc px-4 py-3 font-semibold text-white">Apply correction →</button></div>
+          : stage.kind === "assemble" && stage.verdict ? <div className="floating-card"><p className="eyebrow text-warn">Rebuild / Attempt {stage.iteration}</p><h2 className="font-serif text-4xl">Correct. Assemble. Recheck.</h2><p className="mt-3">{stage.verdict.instruction}</p></div>
+          : stage.kind === "sim" && report?.passed ? <div className="floating-card border-green-200"><p className="eyebrow text-ok">Physics verified / Attempt {report.iteration}</p><h2 className="text-5xl font-semibold text-ok">It works.</h2><p className="mt-3 text-slate-600">Target {report.metrics.reached_target ? "reached" : "checked"} in {report.metrics.time_s.toFixed(1)} s.</p></div>
+          : stage.kind === "done" && run ? <div className="floating-card"><p className={`eyebrow ${run.status === "passed" ? "text-ok" : "text-bad"}`}>Simulation {run.status}</p><h2 className="font-serif text-4xl">{run.status === "passed" ? "From idea to build pack." : "A design worth another iteration."}</h2><p className="mt-2 text-slate-600">{run.status === "passed" ? `Passed on attempt ${report?.iteration}. Download your manufacturing files.` : report?.failure_detail}</p><div className="mt-4"><BuildPack run={run} /></div></div> : null}
+        </div>
+        {stage.kind === "sim" && report?.passed && <Confetti />}
+        {run && <div className="cad-ask"><TweakBox run={run} /></div>}
+        <div className="cad-readout"><details className="relative"><summary className="cursor-pointer rounded-lg border border-line bg-white px-3 py-2">Settings</summary><div className="absolute bottom-12 right-0 w-56 rounded-xl border border-line bg-white p-4 shadow-lg">Orbit: drag<br />Pan: right-drag<br />Zoom: scroll<br /><span className="text-slate-600">World units: millimetres</span></div></details><span className="rounded-lg border border-line bg-white px-3 py-2">Scale 1 : 1 · mm</span></div>
       </div>
-      <StepBar stages={stages} idx={idx} setIdx={setIdx} auto={auto} setAuto={setAuto} prev={prev} next={next} run={run} />
+      <PartsPanel run={run} selected={selected} onSelect={setSelected} spotlight={stage.kind === "parts" ? spotlight : undefined} />
+      <StepBar stages={stages} idx={idx} setIdx={jump} auto={auto} setAuto={setAuto} prev={prev} next={next} run={run} />
     </div>
   );
 }
@@ -91,68 +125,21 @@ function label(st: Stage): string {
 function StepBar({ stages, idx, setIdx, auto, setAuto, prev, next, run }: { stages: Stage[]; idx: number; setIdx: (i: number) => void; auto: boolean; setAuto: (b: boolean) => void; prev: () => void; next: () => void; run: RunState | null }) {
   const live = run && run.status !== "passed" && run.status !== "failed";
   return (
-    <div className="panel flex flex-wrap items-center gap-2 px-4 py-3">
-      <button onClick={prev} className="rounded-lg border border-line px-3 py-1 text-sm hover:border-acc">←</button>
-      <div className="flex flex-1 flex-wrap items-center gap-1">
+    <div className="step-tape panel flex items-center gap-2 px-3 py-2">
+      <button aria-label="Previous stage" disabled={idx === 0} onClick={prev} className="rounded-lg border border-line px-3 py-1 text-sm hover:border-acc">←</button>
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {stages.map((st, i) => (
-          <button key={i} onClick={() => setIdx(i)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${i === idx ? "bg-acc text-white" : i < idx ? "bg-line text-slate-200" : "border border-line text-slate-500"}`}>
-            {i < idx && <span className="mr-1 text-ok">✓</span>}{label(st)}{st.kind === "sim" && (st.report.passed ? <span className="ml-1 text-ok">pass</span> : <span className="ml-1 text-bad">fail</span>)}
+          <button key={i} aria-current={i === idx ? "step" : undefined} onClick={() => setIdx(i)}
+            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition ${i === idx ? "bg-acc text-white" : i < idx ? "bg-slate-100 text-slate-700" : "border border-line text-slate-600"}`}>
+            {i < idx && <span className="mr-1 text-ok">✓</span>}{label(st)}{st.kind === "sim" && (st.report.passed ? <span className="ml-1 rounded bg-white/90 px-1 text-ok">pass</span> : <span className="ml-1 rounded bg-white/90 px-1 text-bad">fail</span>)}
           </button>
         ))}
-        {live && <span className="ml-2 flex items-center gap-2 text-xs text-warn"><span className="h-2 w-2 animate-pulse rounded-full bg-warn" />agents working…</span>}
+        {live && <span className="ml-2 hidden items-center gap-2 whitespace-nowrap text-sm text-warn xl:flex"><span className="h-2 w-2 animate-pulse rounded-full bg-warn" />agents working…</span>}
       </div>
-      <button onClick={() => setAuto(!auto)} className={`rounded-lg border px-3 py-1 text-sm ${auto ? "border-acc text-acc" : "border-line text-slate-400"}`}>{auto ? "Auto-play on" : "Auto-play off"}</button>
-      <button onClick={next} className="rounded-lg border border-line px-3 py-1 text-sm hover:border-acc">→</button>
+      <button onClick={() => setAuto(!auto)} className={`rounded-lg border px-3 py-1 text-sm ${auto ? "border-acc text-acc" : "border-line text-slate-600"}`}>{auto ? "Auto-play on" : "Auto-play off"}</button>
+      <button aria-label="Next stage" disabled={idx === stages.length - 1} onClick={next} className="rounded-lg border border-line px-3 py-1 text-sm hover:border-acc">→</button>
     </div>
   );
-}
-
-function Waiting({ stage, run }: { stage: Stage; run: RunState | null }) {
-  const msg = !run ? "connecting…" : stage.kind === "plan" ? "Planner is reading your idea" : stage.kind === "parts" ? "Parts agent is choosing real components" : "Body agent is generating the chassis";
-  return (
-    <div className="panel flex h-full min-h-[60vh] flex-col items-center justify-center gap-4">
-      <span className="h-4 w-4 animate-ping rounded-full bg-acc" />
-      <p className="text-2xl text-slate-300">{msg}</p>
-    </div>
-  );
-}
-
-function StageView({ stage, run, onAssembled }: { stage: Stage; run: RunState; onAssembled: () => void }) {
-  const H = "h-[68vh] min-h-[480px]";
-  switch (stage.kind) {
-    case "plan": return <PlanStage run={run} />;
-    case "parts": return <PartsStage run={run} />;
-    case "assemble":
-      return (
-        <div className="relative">
-          <AssemblyViewer key={stage.iteration} spec={run.spec ?? null} parts={run.parts ?? null} body={run.body ?? null} board={run.board ?? null} status={run.status} className={H} onDone={onAssembled} />
-          {stage.verdict && (
-            <div className="pointer-events-none absolute bottom-4 left-4 right-4 rounded-xl border border-warn/40 bg-ink/80 px-5 py-3 backdrop-blur">
-              <p className="text-xs uppercase tracking-widest text-warn">Rebuilding after attempt {stage.iteration - 1}</p>
-              <p className="text-lg">{stage.verdict.instruction}</p>
-            </div>
-          )}
-        </div>
-      );
-    case "sim":
-      return (
-        <div className="relative">
-          <Viewer3D key={stage.report.iteration} report={stage.report} spec={run.spec ?? null} body={run.body ?? null} parts={run.parts} board={run.board} className={H} />
-          {stage.report.passed && <Confetti />}
-        </div>
-      );
-    case "verdict":
-      return (
-        <div className="panel flex h-[68vh] min-h-[480px] flex-col items-center justify-center gap-6 px-10 text-center">
-          <span className="pill bg-bad/20 text-bad">Attempt {stage.report.iteration} failed the sim gate</span>
-          <p className="max-w-4xl text-4xl font-black leading-tight md:text-5xl">{stage.verdict.summary}</p>
-          <p className="max-w-3xl text-xl text-slate-300">{stage.report.failure_detail}</p>
-          <p className="pill border border-line text-slate-300">Routed to the {stage.verdict.route_to} agent</p>
-        </div>
-      );
-    case "done": return <DoneStage run={run} />;
-  }
 }
 
 const CONFETTI = Array.from({ length: 60 }, (_, i) => ({ left: (i * 37) % 100, delay: (i % 12) * 0.12, dur: 2.4 + (i % 5) * 0.3, color: ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#e5e7eb"][i % 5], rot: (i * 53) % 360 }));
@@ -164,80 +151,6 @@ function Confetti() {
         <span key={i} className="absolute top-[-10px] block h-2.5 w-1.5 animate-[confetti_linear_forwards]"
           style={{ left: `${c.left}%`, background: c.color, animationDuration: `${c.dur}s`, animationDelay: `${c.delay}s`, transform: `rotate(${c.rot}deg)` }} />
       ))}
-    </div>
-  );
-}
-
-function PlanStage({ run }: { run: RunState }) {
-  const sp = run.spec!;
-  const c = sp.constraints;
-  return (
-    <div className="panel flex h-[68vh] min-h-[480px] flex-col items-center justify-center gap-6 px-10 text-center">
-      <p className="text-xs uppercase tracking-widest text-slate-400">Planner</p>
-      <p className="max-w-4xl text-3xl text-slate-300">“{run.prompt}”</p>
-      <p className="text-5xl font-black md:text-6xl">{TEMPLATE_LABEL[sp.template] ?? sp.template}</p>
-      <p className="max-w-3xl text-xl text-slate-300">Test: {sp.task.description}</p>
-      <div className="flex flex-wrap justify-center gap-2">
-        <span className="pill border border-line text-slate-300">max height {c.max_height_mm} mm</span>
-        <span className="pill border border-line text-slate-300">budget ${c.budget_usd}</span>
-        <span className="pill border border-line text-slate-300">max {c.max_mass_kg} kg</span>
-        {sp.sensors.map((s) => <span key={s} className="pill border border-line text-slate-300">{s.replace(/_/g, " ")}</span>)}
-      </div>
-      <p className="text-slate-500">{sp.rationale}</p>
-    </div>
-  );
-}
-
-function PartsStage({ run }: { run: RunState }) {
-  const parts = run.parts!.parts;
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    setShown(0);
-    const id = setInterval(() => setShown((n) => (n >= parts.length ? n : n + 1)), 450);
-    return () => clearInterval(id);
-  }, [parts.length]);
-  const total = parts.slice(0, shown).reduce((a, p) => a + p.unit_price_usd * p.qty, 0);
-  return (
-    <div className="panel flex h-[68vh] min-h-[480px] flex-col px-8 py-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-slate-400">Parts agent · real components{parts.some((p) => p.source === "firecrawl") ? " · prices verified live via Firecrawl" : ""}</p>
-          <p className="text-3xl font-bold">{shown} of {parts.length} parts</p>
-        </div>
-        <p className="text-5xl font-black">${total.toFixed(2)}</p>
-      </div>
-      <div className="mt-6 grid flex-1 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-        {parts.slice(0, shown).map((p, i) => (
-          <div key={p.role + p.name} className="animate-[fadein_.4s_ease-out] rounded-xl border border-line bg-ink/60 p-4" style={{ animationDelay: `${i * 0}ms` }}>
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wider text-acc">{p.role.replace(/_/g, " ")}</p>
-              {p.source === "firecrawl" && (p.in_stock === false
-                ? <span className="rounded-full bg-bad/20 px-2 py-0.5 text-[10px] font-semibold text-bad">out of stock</span>
-                : <span className="rounded-full bg-ok/20 px-2 py-0.5 text-[10px] font-semibold text-ok">live price · {p.vendor}</span>)}
-            </div>
-            <p className="mt-1 text-lg font-semibold leading-tight">{p.qty}× {p.name}</p>
-            <p className="mt-2 text-sm text-slate-400">{p.mass_g} g{p.stall_torque_nm ? ` · ${p.stall_torque_nm} N·m` : ""}{p.rated_rpm ? ` · ${p.rated_rpm} rpm` : ""}</p>
-            <p className="mt-1 text-xl font-bold">${(p.unit_price_usd * p.qty).toFixed(2)}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DoneStage({ run }: { run: RunState }) {
-  const last = run.reports.at(-1);
-  return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <div className="flex flex-col gap-4 lg:col-span-2">
-        <div className={`panel px-6 py-5 ${run.status === "passed" ? "border-ok/40 bg-ok/10" : "border-bad/40 bg-bad/10"}`}>
-          <p className={`text-xs uppercase tracking-widest ${run.status === "passed" ? "text-ok" : "text-bad"}`}>Sim gate</p>
-          <p className="text-3xl font-black">{run.status === "passed" ? `Passed on attempt ${last?.iteration} in ${last?.metrics.time_s.toFixed(1)} s. BOM $${run.parts?.total_usd.toFixed(0)}.` : `Closest design still fails: ${last?.failure_detail}`}</p>
-        </div>
-        {last && <Viewer3D report={last} spec={run.spec ?? null} body={run.body ?? null} parts={run.parts} board={run.board} className="h-[48vh] min-h-[360px]" />}
-        <TweakBox run={run} />
-      </div>
-      <BuildPack run={run} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
-import { ContactShadows, Grid } from "@react-three/drei";
+import { BlueprintFloor, StudioLights } from "./BlueprintFloor";
 import { useRef } from "react";
 import type { Group } from "three";
 import { buildPieces, RobotModel } from "@/components/Robot3D";
@@ -39,12 +39,8 @@ function Robot() {
 
 export default function Hero3D() {
   return <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0.48, 0.38, 0.55], fov: 35 }} gl={{ alpha: true, antialias: true }} aria-label="Rotating assembled mecanum robot with a gripper arm">
-    <ambientLight intensity={0.8} />
-    <directionalLight position={[1, 2, 1]} intensity={3} color="#dbeafe" castShadow shadow-mapSize={[1024, 1024]} />
-    <pointLight position={[-0.5, 0.4, -0.4]} intensity={3} color="#3b82f6" />
-    <pointLight position={[0.6, 0.2, -0.3]} intensity={1.5} color="#f59e0b" />
+    <StudioLights zUp={false} />
     <Robot />
-    <ContactShadows position={[0, 0, 0]} opacity={0.65} scale={2} blur={2.8} far={0.5} resolution={256} />
-    <Grid position={[0, -0.002, 0]} args={[4, 4]} cellSize={0.05} sectionSize={0.25} cellColor="#242a38" sectionColor="#3b82f6" cellThickness={0.5} sectionThickness={0.7} fadeDistance={1.8} infiniteGrid />
+    <BlueprintFloor zUp={false} size={1} />
   </Canvas>;
 }

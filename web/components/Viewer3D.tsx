@@ -1,20 +1,28 @@
 "use client";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Grid } from "@react-three/drei";
+import { CameraRig, PartTooltip, useViewport, ViewportTools, type PartHover, type PartInteraction } from "./ViewportControls";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BlueprintFloor, StudioLights } from "./BlueprintFloor";
 import * as THREE from "three";
 import { BodyArtifact, BoardArtifact, PartsSelection, RobotSpec, SimReport, Trajectory } from "@/lib/types";
 import { RobotModel, buildPieces } from "./Robot3D";
 
 /** Replays trajectory.json. Geometry mirrors the MJCF primitives (box chassis,
  *  cylinder wheels), scene drawn from the task id. No meshes needed. */
-export function Viewer3D({ report, spec, body, parts, board, className }: { report: SimReport; spec: RobotSpec | null; body: BodyArtifact | null; parts?: PartsSelection | null; board?: BoardArtifact | null; className?: string }) {
+export function Viewer3D({ report, spec, body, parts, board, className, selected, onSelect, focusLeft = false }: { report: SimReport; spec: RobotSpec | null; body: BodyArtifact | null; parts?: PartsSelection | null; board?: BoardArtifact | null; className?: string; focusLeft?: boolean } & PartInteraction) {
   const pieces = useMemo(() => buildPieces(spec, parts ?? null, body, board ?? null), [spec, parts, body, board]);
+  const controls = useViewport();
+  const [exploded, setExploded] = useState(false);
+  const [hover, setHover] = useState<PartHover>(null);
   const followRef = useRef(new THREE.Vector3(0, 0, 0));
+  const [trajectoryError, setTrajectoryError] = useState(false);
   const [traj, setTraj] = useState<Trajectory | null>(null);
   useEffect(() => {
+    setTraj(null); setTrajectoryError(false);
     if (!report.trajectory_url) return;
-    fetch(report.trajectory_url).then((r) => r.json()).then(setTraj).catch(() => setTraj(null));
+    const controller = new AbortController();
+    fetch(report.trajectory_url, { signal: controller.signal }).then((r) => { if (!r.ok) throw new Error("Trajectory unavailable"); return r.json(); }).then(setTraj).catch(() => { if (!controller.signal.aborted) { setTraj(null); setTrajectoryError(true); } });
+    return () => controller.abort();
   }, [report.trajectory_url]);
 
   const wheelR = (body?.wheel_diameter_mm ?? 60) / 2000;
@@ -22,21 +30,22 @@ export function Viewer3D({ report, spec, body, parts, board, className }: { repo
 
   return (
     <div className={`panel relative overflow-hidden ${className ?? "h-[520px]"}`}>
-      <div className={`absolute left-3 top-3 z-10 rounded-lg px-3 py-1 text-sm font-bold ${report.passed ? "bg-ok text-black" : "bg-bad text-white"}`}>
+      <div className={`viewport-status font-semibold ${report.passed ? "bg-green-50 text-ok" : "bg-red-50 text-bad"}`}>
         Attempt {report.iteration}: {report.passed ? "passed" : report.failure_class.replace(/_/g, " ")}
       </div>
-      {!report.passed && <p className="absolute bottom-3 left-3 right-3 z-10 truncate text-xs text-slate-300">{report.failure_detail}</p>}
-      <Canvas shadows camera={{ position: [-0.9, -1.1, 0.7], up: [0, 0, 1], fov: 40 }}>
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[2, -2, 4]} intensity={1.2} />
-        <Grid args={[6, 6]} cellSize={0.1} sectionSize={0.5} rotation={[Math.PI / 2, 0, 0]} cellColor="#2a3142" sectionColor="#3b82f6" fadeDistance={6} />
+      {!report.passed && <p className="pointer-events-none absolute bottom-4 left-4 z-10 max-w-[45%] truncate text-sm text-slate-700">{report.failure_detail}</p>}
+      <ViewportTools controls={controls} exploded={exploded} onExplode={() => setExploded(v => !v)} />
+      <PartTooltip hover={hover} />
+      <Canvas onPointerMissed={() => onSelect?.(null)} shadows camera={{ position: [-0.9, -1.1, 0.7], up: [0, 0, 1], fov: 40 }}>
+        <StudioLights />
+        <BlueprintFloor size={6} />
         <Scene taskId={taskId} />
         <Robot traj={traj} wheelR={wheelR} template={traj?.template ?? spec?.template ?? "diff_drive_rover"} follow={followRef}>
-          <RobotModel pieces={pieces} />
+          <RobotModel pieces={pieces} progress={exploded ? 0 : 1.15} selected={selected} onSelect={onSelect} onHover={setHover} />
         </Robot>
-        <FollowControls follow={followRef} />
+        <CameraRig focusLeft={focusLeft} view={controls.view} follow={followRef} radius={exploded ? 1 : 0.42} />
       </Canvas>
-      {!traj && <p className="absolute inset-0 flex items-center justify-center text-slate-500">loading trajectory…</p>}
+      {!traj && <p className="pointer-events-none absolute bottom-28 left-24 rounded-lg bg-white/90 px-3 py-2 text-sm text-slate-600">{report.trajectory_url && !trajectoryError ? "Loading trajectory…" : "Trajectory unavailable · inspect the assembled model"}</p>}
     </div>
   );
 }
@@ -70,20 +79,6 @@ function Scene({ taskId }: { taskId: string }) {
       <mesh position={[2, 0, 0.005]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.05, 0.05, 0.01]} /><meshStandardMaterial color="#ef4444" /></mesh>
     </group>
   );
-}
-
-/** OrbitControls whose target eases toward the robot so the camera tracks it. */
-function FollowControls({ follow }: { follow: React.MutableRefObject<THREE.Vector3> }) {
-  const ref = useRef<any>(null);
-  useFrame(() => {
-    const c = ref.current;
-    if (!c) return;
-    const prev = c.target.clone();
-    c.target.lerp(follow.current, 0.08);
-    c.object.position.add(c.target.clone().sub(prev));
-    c.update();
-  });
-  return <OrbitControls ref={ref} target={[0, 0, 0]} enablePan={false} minDistance={0.3} maxDistance={4} />;
 }
 
 function Robot({ traj, wheelR, template, children, follow }: { traj: Trajectory | null; wheelR: number; template: string; children: React.ReactNode; follow: React.MutableRefObject<THREE.Vector3> }) {
