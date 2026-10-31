@@ -17,18 +17,25 @@ router = APIRouter(prefix="/gallery", tags=["gallery"])
 
 # (query, title, category, maker)
 CURATED: list[tuple[str, str, str, str]] = [
-    ("couch sofa", "Soft sofa", "Furniture", "NVIDIA"),
-    ("waste bin", "Waste bin", "Props", "NVIDIA"),
-    ("wooden pallet", "Block pallet", "Warehouse", "NVIDIA"),
-    ("cardboard box", "Cardboard box", "Warehouse", "PalatialSim"),
-    ("robot arm", "Industrial robot arm", "Robots", "SimReady partners"),
-    ("robotic gripper", "Robotiq gripper", "Robots", "Robotiq"),
-    ("forklift", "Forklift", "Warehouse", "NVIDIA"),
-    ("warehouse shelf rack", "Shelf rack", "Warehouse", "NVIDIA"),
-    ("office chair", "Office chair", "Furniture", "NVIDIA"),
-    ("hospital bed", "Hospital bed", "Medical", "NVIDIA"),
-    ("traffic cone", "Traffic cone", "Props", "NVIDIA"),
-    ("fire extinguisher", "Fire extinguisher", "Props", "NVIDIA"),
+    # robots only on the landing page; scene props (couch, bins) are fetched on demand by the sim instead
+    ("Standard Bots Thor robot arm", "Standard Bots Thor", "Robot arms", "Standard Bots"),
+    ("Franka robot arm", "Franka research arm", "Robot arms", "Franka Robotics"),
+    ("Fanuc industrial robot arm", "Fanuc industrial arm", "Robot arms", "Fanuc"),
+    ("Comau robot arm", "Comau arm", "Robot arms", "Comau"),
+    ("universal robots UR5 arm", "UR cobot arm", "Robot arms", "Teradyne Robotics"),
+    ("Robotiq 2F-140 gripper", "Robotiq 2F-140 gripper", "Grippers", "Robotiq"),
+    ("Robotiq 2F-85 gripper", "Robotiq 2F-85 gripper", "Grippers", "Robotiq"),
+    ("OnRobot gripper", "OnRobot gripper", "Grippers", "OnRobot"),
+    ("Robotiq hand-e gripper", "Robotiq Hand-E", "Grippers", "Robotiq"),
+    ("AgiBot humanoid robot", "AgiBot humanoid", "Humanoids", "AgiBot"),
+    ("humanoid robot", "Humanoid robot", "Humanoids", "SimReady partners"),
+    ("quadruped robot dog", "Quadruped robot", "Mobile robots", "SimReady partners"),
+    ("autonomous mobile robot AMR", "Autonomous mobile robot", "Mobile robots", "NVIDIA"),
+    ("warehouse robot", "Warehouse robot", "Mobile robots", "NVIDIA"),
+    ("surgical robot", "Surgical robot", "Medical robots", "NVIDIA"),
+    ("robot vacuum cleaner", "Robot vacuum", "Mobile robots", "NVIDIA"),
+    ("delivery robot", "Delivery robot", "Mobile robots", "NVIDIA"),
+    ("robot end effector suction gripper", "Suction gripper", "Grippers", "SimReady partners"),
 ]
 
 _assets: dict[str, dict] = {}
