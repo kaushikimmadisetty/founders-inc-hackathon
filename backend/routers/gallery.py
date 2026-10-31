@@ -80,7 +80,11 @@ async def gallery(limit: int = 24):
             "passed": st.status == "passed", "link": f"/run/{st.run_id}", "created_ms": r["created_ms"],
             "task": st.spec.task.description,
         })
-    assets = [_assets[q] for q, *_ in CURATED if q in _assets]
+    assets, seen = [], set()
+    for q, *_ in CURATED:  # two queries can resolve to the same Hugging Face asset; show it once
+        a = _assets.get(q)
+        if a and a["source_url"] not in seen:
+            seen.add(a["source_url"]); assets.append(a)
     cats: dict[str, int] = {}
     for it in robots + assets:
         cats[it["category"]] = cats.get(it["category"], 0) + 1

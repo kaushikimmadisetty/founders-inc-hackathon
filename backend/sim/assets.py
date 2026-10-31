@@ -67,6 +67,25 @@ async def fetch_prop(query: str, timeout_s: float = 20) -> PropAsset | None:
             await process.communicate()
 
 
+BLUEPRINT_BG = (238, 244, 251)
+
+
+def _lighten_background(img):
+    """NVIDIA's thumbnails often sit on a black studio backdrop. Flood-fill the backdrop
+    from the four corners to our blueprint tint, so dark robot parts stay dark."""
+    from PIL import ImageDraw
+    w, h = img.size
+    corners = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]
+    dark = sum(1 for c in corners if sum(img.getpixel(c)) < 150)
+    if dark < 3:
+        return img
+    out = img.copy()
+    for c in corners:
+        if sum(out.getpixel(c)) < 150:
+            ImageDraw.floodfill(out, c, BLUEPRINT_BG, thresh=60)
+    return out
+
+
 def _build(query: str) -> PropAsset:
     import httpx
     import numpy as np
@@ -189,7 +208,7 @@ def _build(query: str) -> PropAsset:
                 thumbnail.raise_for_status()
                 with Image.open(io.BytesIO(thumbnail.content)) as image:
                     image.thumbnail((512, 512))
-                    image.convert("RGB").save(work / "thumbnail.png")
+                    _lighten_background(image.convert("RGB")).save(work / "thumbnail.png")
                 meta = {"dims_m": dims, "source_url": source, "license": "CC-BY-4.0", "obj_up_axis": "Z", "glb_up_axis": "Y"}
                 folder.mkdir(exist_ok=True)
                 for name in ("prop.obj", "prop.glb", "thumbnail.png"):
