@@ -4,37 +4,53 @@
 
 :root { color-scheme: light; }
 body { @apply bg-ink text-slate-900 antialiased; }
-.panel { @apply rounded-2xl border border-line bg-panel shadow-[0_3px_20px_rgba(35,55,80,0.04)]; }
-.pill { @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold uppercase tracking-wide; }
-
-@keyframes fadein { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
-
-@keyframes confetti { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(80vh) rotate(720deg); opacity: 0; } }
-
-button, input, a.pill { min-height: 36px; }
+.panel { @apply rounded-xl border border-line bg-panel; }
+.pill { @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium; }
+button, input, select, summary, a.pill { min-height: 36px; }
 button { touch-action: manipulation; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+button:hover:not(:disabled) { border-color: #c5d2e2; }
 :focus-visible { outline: 2px solid #3b82f6; outline-offset: 3px; }
-button:disabled { cursor: not-allowed; }
 ::selection { background: #dbeafe; }
-
-.logo-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: #223b54; color: white; font-weight: 700; font-size: 16px; box-shadow: inset 0 0 0 3px #ffffff20; }
-.cad-workspace { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0,1fr) 390px; grid-template-rows: minmax(0,1fr) auto; gap: 12px; padding: 12px; }
-.cad-viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: 20px; }
-.cad-viewport > .panel { border: 0; border-radius: 20px; }
-.step-tape { grid-column: 1 / -1; }
-.segment { border-radius: 12px; padding: 3px; background: #f1f3f6; gap: 3px; }
-.segment button { border-radius: 9px; padding: 6px 12px; font-size: 14px; color: #5b6472; }
-.segment button.active { background: white; color: #111827; box-shadow: 0 1px 5px #142d4612; }
-.stage-overlay { position: absolute; top: 80px; right: 16px; width: min(380px, calc(100% - 100px)); max-height: calc(100% - 200px); overflow: auto; pointer-events: none; }
-.floating-card { pointer-events: auto; padding: 22px; border: 1px solid #e6e8ee; border-radius: 20px; background: #fffffff0; box-shadow: 0 12px 45px #273b5510; backdrop-filter: blur(16px); animation: fadein .35s ease-out; }
-.eyebrow { margin-bottom: 10px; font-size: 14px; font-weight: 600; color: #586779; }
-.review-card { border-color: #efd8c4; background: #fffdf8f5; }
-.cad-ask { position: absolute; bottom: 58px; left: 50%; transform: translateX(-50%); width: min(490px, calc(100% - 36px)); z-index: 20; }
-.ask-pill { display: flex; align-items: center; gap: 6px; padding: 7px; border: 1px solid #e1e6ee; border-radius: 32px; background: #fffffff5; box-shadow: 0 6px 24px #223a5514; }
-.cad-readout { position: absolute; right: 14px; bottom: 12px; display: flex; gap: 6px; font-size: 14px; }
-.part-card { overflow: hidden; border: 1px solid #e6e8ee; border-radius: 16px; background: white; transition: border-color .2s, box-shadow .2s; }
-.part-card:hover, .part-card.selected { border-color: #8fb3e8; box-shadow: 0 0 0 2px #dbeafe; }
-.part-thumb { display: grid; place-items: center; height: 110px; background: radial-gradient(ellipse at center,#f0f3f6, #fafbfc 70%); overflow: hidden; }
+@keyframes stage-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes stage-fade { from { opacity: 0; } to { opacity: 1; } }
+.stage-fade, .scene-layer { animation: stage-fade 150ms ease; }
+.logo-mark { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 6px; background: #214a3b; color: #fff; font-size: 14px; font-weight: 600; box-shadow: inset 0 0 0 3px #ffffff18; }
+.cad-header { height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid #e6e8ee; background: white; position: relative; z-index: 30; }
+.brand-link { display: flex; align-items: center; gap: 7px; font-size: 14px; flex-shrink: 0; }
+.header-crumb, .header-status { color: #6b7280; font-size: 14px; white-space: nowrap; }
+.header-status { overflow: hidden; text-overflow: ellipsis; }
+.header-actions { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+.header-actions button { border: 1px solid #e6e8ee; border-radius: 9px; padding: 0 12px; background: white; font-size: 14px; }
+.header-actions .share-button { background: #20252c; color: white; border-color: #20252c; }
+.header-notice { position: absolute; right: 14px; top: 52px; padding: 8px 14px; border: 1px solid #e6e8ee; border-radius: 10px; background: white; font-size: 14px; box-shadow: 0 3px 12px #25384a12; }
+.cad-workspace { --sidebar: 400px; display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0,1fr) var(--sidebar); grid-template-rows: 44px minmax(0,1fr) 44px; background: #eef4fb; }
+.cad-workspace.panel-hidden { grid-template-columns: minmax(0,1fr); }
+.workspace-toolbar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; position: relative; background: #fff; border-bottom: 1px solid #e6e8ee; padding: 0 10px; }
+.toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 2px; color: #7c8795; }
+.workspace-toolbar > div > button { display: grid; place-items: center; width: 36px; border-radius: 7px; font-size: 18px; }
+.workspace-toolbar > div > button:hover { background: #f3f5f7; color: #405778; }
+.toolbar-divider { height: 16px; width: 1px; background: #e6e8ee; margin: 0 6px; }
+.segment { border-radius: 16px; padding: 2px; background: #f3f4f6; gap: 2px; }
+.segment button { border-radius: 14px; padding: 5px 13px; font-size: 14px; color: #6b7280; }
+.segment button.active { background: #fff; color: #111827; box-shadow: 0 1px 4px #142d460a; }
+.viewport-presets { position: absolute; left: 50%; transform: translateX(-50%); }
+.cad-viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #eef4fb; }
+.scene-layer { view-transition-name: robot-stage; width: 100%; height: 100%; }
+.scene-layer > .panel { border: 0; border-radius: 0; background: #eef4fb; }
+.parts-panel { grid-column: 2; grid-row: 2 / 4; border-radius: 0; border: 0; border-left: 1px solid #e6e8ee; background: #fafbfc; }
+.parts-panel > div:first-child { border: 0; padding: 12px; }
+.parts-panel > div:nth-child(2) { padding: 8px 12px 14px; }
+.parts-panel .panel { box-shadow: none; background: white; }
+.parts-filter { display: flex; gap: 7px; margin-bottom: 10px; font-size: 14px; }
+.parts-filter label { border: 1px solid #e6e8ee; background: #fff; border-radius: 8px; padding-right: 12px; }
+.parts-filter select { flex: 1; min-width: 0; padding: 0 10px; border-radius: 8px; background: transparent; }
+.parts-filter label span { color: #6b7280; }
+.parts-filter > button { display: grid; place-items: center; width: 36px; border: 1px solid #e6e8ee; background: white; border-radius: 8px; color: #6b7280; }
+.part-card { overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: #f0f2f4; transition: border-color 150ms; }
+.part-card:hover, .part-card.selected { border-color: #8fb3e8; }
+.part-card > div:last-child { text-align: center; padding: 8px 10px 12px; }
+.part-thumb { display: grid; place-items: center; height: 105px; background: #f0f2f4; overflow: hidden; }
 .iso-part { display: block; position: relative; width: 60px; height: 36px; background: linear-gradient(135deg,#cbd0d6,#878e98); transform: rotateX(50deg) rotateZ(-35deg); box-shadow: -8px 10px 0 #626c78, -16px 20px 12px #28384b20; border: 1px solid #bfc6cd; }
 .iso-part i { position: absolute; inset: 7px 15px; background: #343a44; border: 2px solid #a1aab6; }
 .iso-part b { position: absolute; width: 24px; height: 4px; right: -18px; top: 15px; background: #b8bcc4; }
@@ -42,19 +58,43 @@ button:disabled { cursor: not-allowed; }
 .part-wheel .iso-part i, .part-caster .iso-part i { border-radius: 50%; inset: 15px; background: #b8bcc4; }
 .part-battery .iso-part { background: #30343c; border-left: 7px solid #c6a950; }
 .part-mcu .iso-part, .part-motor_driver .iso-part, .part-imu .iso-part, .part-tof .iso-part, .part-regulator .iso-part { background: #1f6b45; border: 3px dotted #bdac7c; box-shadow: -3px 4px 0 #13482e, -12px 18px 12px #28384b20; }
-@media (min-width: 1600px) { .cad-workspace { grid-template-columns: minmax(0,1fr) 420px; } }
-@media (max-width: 1050px) { .cad-workspace { grid-template-columns: minmax(0,1fr) 310px; } .part-thumb { height: 85px; } .stage-overlay { width: min(320px, calc(100% - 90px)); } }
-@media (max-width: 720px) { .cad-workspace { grid-template-columns: minmax(0,1fr) 230px; gap: 6px; padding: 6px; } .parts-panel .grid-cols-2 { grid-template-columns: 1fr; } .parts-panel > div:first-child .grid-cols-2 { grid-template-columns: 1fr 1fr; } .stage-overlay { left: 8px; right: 8px; top: 125px; width: auto; } .floating-card { padding: 14px; } .floating-card h2 { font-size: 28px; } .step-tape { overflow-x: auto; } }
-@media (max-width: 520px) { .cad-workspace { grid-template-columns: minmax(0,1fr); } .parts-panel { position: absolute; right: 8px; top: 76px; width: 220px; max-height: 42vh; z-index: 25; } .parts-panel:focus-within, .parts-panel:hover { max-height: 72vh; } .stage-overlay { top: 170px; width: calc(100% - 16px); } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
-.viewport-presets { position: absolute; z-index: 15; top: 14px; left: 50%; transform: translateX(-50%); border: 1px solid #e6e8ee; box-shadow: 0 2px 12px #253c5310; }
-.view-tools { position: absolute; top: 18px; left: 16px; z-index: 15; display: flex; flex-direction: column; align-items: center; gap: 9px; }
-.tool-button { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #e6e8ee; border-radius: 50%; background: white; box-shadow: 0 2px 6px #233b5310; color: #536273; }
-.tool-button:hover { background: #eff6ff; color: #2563eb; }
+
+.view-tools { position: absolute; top: 18px; left: 16px; z-index: 15; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.tool-button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #e6e8ee; border-radius: 50%; background: #fff; box-shadow: 0 1px 5px #233b5308; color: #677485; }
+.tool-button:hover { background: #f8fbff; color: #3b82f6; }
 .view-cube { position: relative; width: 68px; height: 76px; margin-bottom: 8px; }
 .view-cube button { position: absolute; min-height: 36px; width: 43px; font-size: 14px; letter-spacing: -.8px; border: 1px solid #cbd5e1; color: #576579; box-shadow: inset 0 0 8px #ffffff99; }
 .cube-top { top: 0; left: 12px; transform: rotate(-30deg) skewX(30deg) scaleY(.8); background: #fff; }
 .cube-front { top: 31px; left: 0; transform: skewY(30deg) scaleX(.8); background: #e4eaf0; }
 .cube-right { top: 31px; left: 34px; transform: skewY(-30deg) scaleX(.8); background: #f0f4f8; }
-.assembly-modes { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; white-space: nowrap; border: 1px solid #e6e8ee; }
-.viewport-status { position: absolute; top: 66px; left: 100px; z-index: 10; padding: 7px 12px; border: 1px solid #e6e8ee; border-radius: 10px; background: #ffffffde; font-size: 14px; }
+
+.assembly-modes { position: absolute; top: 16px; right: 16px; z-index: 15; display: flex; white-space: nowrap; border: 1px solid #e6e8ee; background: #ffffffdd; }
+.viewport-status { position: absolute; top: 16px; right: 16px; z-index: 10; padding: 7px 12px; border: 1px solid #e6e8ee; border-radius: 9px; background: #ffffffde; font-size: 14px; }
+.sim-failure-detail { position: absolute; top: 108px; right: 16px; z-index: 10; max-width: 260px; padding: 8px 12px; border-radius: 8px; background: #ffffffdd; font-size: 14px; color: #6b7280; pointer-events: none; }
+.replay-button { position: absolute; top: 62px; right: 16px; z-index: 15; border: 1px solid #e6e8ee; border-radius: 9px; background: white; padding: 5px 14px; font-size: 14px; }
+.viewport-message { position: absolute; top: 20px; left: 110px; font-size: 14px; color: #6b7280; }
+.eyebrow { margin-bottom: 8px; font-size: 14px; color: #6b7280; }
+.review-card { padding: 16px; margin-bottom: 14px; border: 1px solid #e6e8ee; border-radius: 12px; background: #fff; }
+.cad-ask { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); width: min(350px, calc(100% - 36px)); z-index: 20; }
+.ask-pill { display: flex; align-items: center; gap: 3px; padding: 5px; border: 1px solid #30353e; border-radius: 28px; background: #242933; color: white; box-shadow: 0 3px 12px #223a5512; }
+.cad-attribution { position: absolute; bottom: 12px; left: 12px; max-width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: #687789; }
+.cad-readout { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 6px; font-size: 14px; color: #526071; z-index: 21; }
+.cad-readout summary, .cad-readout > span { display: flex; align-items: center; min-height: 36px; padding: 5px 10px; background: white; border: 1px solid #e6e8ee; border-radius: 8px; }
+.cad-readout summary { cursor: pointer; list-style: none; }
+.settings-content { position: absolute; bottom: 44px; right: 0; width: 200px; padding: 14px; border: 1px solid #e6e8ee; border-radius: 10px; background: white; line-height: 1.8; }
+.step-tape { grid-column: 1; display: flex; align-items: center; gap: 4px; padding: 3px 10px; border-top: 1px solid #e6e8ee; background: #fff; color: #6b7280; }
+.step-tape > button { width: 36px; flex-shrink: 0; }
+.stage-steps { display: flex; flex: 1; min-width: 0; align-items: center; gap: 3px; overflow-x: auto; }
+.stage-steps button { flex-shrink: 0; padding: 5px 10px; border-radius: 7px; font-size: 14px; }
+.stage-steps button.current { color: #111827; background: #f0f2f5; }
+@media (max-width: 1250px) { .cad-ask { bottom: 60px; } .header-status { display: none; } }
+@media (max-width: 1000px) { .cad-workspace { --sidebar: 320px; } .header-crumb { display: none; } .part-thumb { height: 85px; } }
+@media (max-width: 720px) { .cad-workspace { --sidebar: 240px; } .brand-link strong { display: none; } .header-actions button { padding: 0 7px; } .header-actions button:first-child { display: none; } .toolbar-left button:nth-of-type(n+3), .toolbar-divider { display: none; } .parts-panel .grid-cols-2 { grid-template-columns: 1fr; } .parts-panel > div:first-child .grid-cols-2 { grid-template-columns: 1fr 1fr; } .assembly-modes { top: 120px; right: 8px; } .cad-attribution { max-width: 100%; bottom: 104px; } }
+@media (max-width: 520px) { .cad-workspace { --sidebar: 210px; } .cad-header h1 { font-size: 16px; } .view-tools { left: 5px; } .assembly-modes { left: 8px; right: auto; top: auto; bottom: 112px; } .assembly-modes button { padding: 5px 7px; } .cad-readout { right: 5px; left: 5px; gap: 3px; } .cad-readout summary, .cad-readout > span { padding: 5px; } .cad-ask { width: calc(100% - 10px); } .cad-attribution { display: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+::view-transition { pointer-events: none; }
+::view-transition-group(*) { animation: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(robot-stage) { animation: stage-fade-out 150ms ease both; }
+::view-transition-new(robot-stage) { animation: stage-fade 150ms ease both; }

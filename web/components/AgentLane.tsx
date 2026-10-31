@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { anyApi } from "convex/server"; // typed api arrives with `npx convex dev` codegen; anyApi keeps the build green without a deployment
 import { AgentEvent, AgentName, RunState } from "@/lib/types";
 
-const DOT: Record<string, string> = { start: "bg-acc animate-pulse", progress: "bg-slate-400", done: "bg-ok", error: "bg-bad" };
+const DOT: Record<string, string> = { start: "bg-acc", progress: "bg-slate-400", done: "bg-ok", error: "bg-bad" };
 const CONVEX_ON = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
 export function AgentLane(props: { name: AgentName; title: string; runId: string; run: RunState | null }) {

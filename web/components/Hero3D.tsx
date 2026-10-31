@@ -1,9 +1,8 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { BlueprintFloor, StudioLights } from "./BlueprintFloor";
-import { useRef } from "react";
-import type { Group } from "three";
+import { OrbitControls } from "@react-three/drei";
 import { buildPieces, RobotModel } from "@/components/Robot3D";
 import type { RobotSpec, PartsSelection, BodyArtifact, BoardArtifact } from "@/lib/types";
 
@@ -30,17 +29,16 @@ const board: BoardArtifact = { provider: "fallback", outline_mm: [80, 60], mount
 const pieces = buildPieces(spec, parts, body, board);
 
 function Robot() {
-  const ref = useRef<Group>(null);
-  useFrame((_, dt) => { if (ref.current) ref.current.rotation.y += Math.min(dt, 0.05) * 0.16; });
-  return <group ref={ref} position={[0, 0.035, 0]} rotation={[0, -0.5, 0]}>
+  return <group position={[0, 0.035, 0]} rotation={[0, -0.5, 0]}>
     <group rotation={[-Math.PI / 2, 0, 0]}><RobotModel pieces={pieces} progress={1.2} /></group>
   </group>;
 }
 
 export default function Hero3D() {
-  return <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0.48, 0.38, 0.55], fov: 35 }} gl={{ alpha: true, antialias: true }} aria-label="Rotating assembled mecanum robot with a gripper arm">
+  return <Canvas shadows dpr={[1, 1.75]} camera={{ position: [0.48, 0.38, 0.55], fov: 35 }} gl={{ alpha: true, antialias: true }} aria-label="Assembled mecanum robot with a gripper arm">
     <StudioLights zUp={false} />
     <Robot />
+    <OrbitControls enableDamping={false} target={[0, 0.08, 0]} minDistance={0.3} maxDistance={1.8} />
     <BlueprintFloor zUp={false} size={1} />
   </Canvas>;
 }

@@ -1,10 +1,9 @@
 "use client";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { identity, partFor } from "@/lib/partRefs";
 import { CameraRig, PartTooltip, useViewport, ViewportTools, type PartHover, type PartInteraction } from "./ViewportControls";
 import { useMemo, useRef, useState } from "react";
 import { BlueprintFloor, StudioLights } from "./BlueprintFloor";
-import * as THREE from "three";
 import { BoardArtifact, BodyArtifact, PartsSelection, RobotSpec } from "@/lib/types";
 
 /** Full robot built from the real spec/parts/body/board, as the same primitives
@@ -117,25 +116,17 @@ const ease = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
 export function pieceStart(p: Piece, total: number) { return (p.order / Math.max(total, 1)) * 0.8; }
 
 function PieceMesh({ p, progress, total, selected, onSelect, onHover }: { p: Piece; progress: number; total: number } & PartInteraction) {
-  const ref = useRef<THREE.Mesh>(null);
   // stagger: piece k assembles over [start, start + 0.3]
   const start = pieceStart(p, total);
   const t = ease((progress - start) / 0.3);
-  const pos = useMemo(() => new THREE.Vector3(), []);
-  useFrame(() => {
-    if (!ref.current) return;
-    pos.set(p.pos[0] + p.from[0] * (1 - t), p.pos[1] + p.from[1] * (1 - t), p.pos[2] + p.from[2] * (1 - t));
-    ref.current.position.copy(pos);
-    const m = ref.current.material as THREE.MeshStandardMaterial;
-    m.opacity = 0.25 + 0.75 * t;
-  });
+  const position: [number, number, number] = [p.pos[0] + p.from[0] * (1 - t), p.pos[1] + p.from[1] * (1 - t), p.pos[2] + p.from[2] * (1 - t)];
   const geom = p.shape === "box" ? <boxGeometry args={p.size} /> : p.shape === "cyl" ? <cylinderGeometry args={[p.size[0], p.size[0], p.size[1], 28]} /> : <sphereGeometry args={[p.size[0], 16, 16]} />;
   const rot = p.rot ?? (p.shape === "cyl" ? [0, 0, 0] : [0, 0, 0]);
   const picked = !!selected && identity(selected).ref === identity(p.id).ref;
   const metal = p.id.startsWith("motor") || p.id.startsWith("servo") || p.id.startsWith("grip");
   const wheel = p.id.startsWith("wheel");
   return (
-    <mesh onPointerOver={e => { e.stopPropagation(); onHover?.({ label: `${identity(p.id).ref} ${p.label}`, x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }); }} onPointerMove={e => { e.stopPropagation(); onHover?.({ label: `${identity(p.id).ref} ${p.label}`, x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }); }} onPointerOut={() => onHover?.(null)} onClick={e => { e.stopPropagation(); onSelect?.(p.id); }} ref={ref} rotation={rot as [number, number, number]} castShadow receiveShadow>
+    <mesh onPointerOver={e => { e.stopPropagation(); onHover?.({ label: `${identity(p.id).ref} ${p.label}`, x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }); }} onPointerMove={e => { e.stopPropagation(); onHover?.({ label: `${identity(p.id).ref} ${p.label}`, x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }); }} onPointerOut={() => onHover?.(null)} onClick={e => { e.stopPropagation(); onSelect?.(p.id); }} position={position} rotation={rot as [number, number, number]} castShadow receiveShadow>
       {geom}
       <meshStandardMaterial color={p.color} transparent opacity={1} roughness={wheel ? 0.9 : metal ? 0.35 : p.id === "pcb" ? 0.38 : 0.6} metalness={metal ? 0.8 : p.id === "pcb" ? 0.18 : 0.05} emissive={picked ? "#3b82f6" : "#000000"} emissiveIntensity={picked ? 0.45 : 0} />
       {wheel && <>
@@ -148,85 +139,47 @@ function PieceMesh({ p, progress, total, selected, onSelect, onHover }: { p: Pie
   );
 }
 
-/** Static or animated robot; drop inside a Canvas. progress 1 = fully assembled. */
-export function RobotModel({ pieces, progress = 1.15, labels = false, labelEl, ...interaction }: { pieces: Piece[]; progress?: number; labels?: boolean; labelEl?: React.RefObject<HTMLDivElement | null> } & PartInteraction) {
-  const total = Math.max(...pieces.map((p) => p.order), 1) + 1;
-  // label only the labelled piece currently flying in (latest started, not yet settled)
-  let active: string | null = null;
-  if (labels && progress < 1) {
-    let best = -1;
-    for (const p of pieces) {
-      const st = pieceStart(p, total);
-      if (p.label && st <= progress && st > best) { best = st; active = p.id; }
-    }
-  }
-  const activePiece = pieces.find((p) => p.id === active) ?? null;
-  return (
-    <group>
-      {pieces.map((p) => <PieceMesh key={p.id} p={p} progress={progress} total={total} {...interaction} />)}
-      {labels && <ActiveLabel piece={activePiece} progress={progress} total={total} el={labelEl} />}
-    </group>
-  );
-}
-
-/** Projects the flying part's 3D position to the panel and positions a plain DOM
- *  label (passed in via ref). No drei Html, so nothing to unmount mid-commit. */
-function ActiveLabel({ piece, progress, total, el }: { piece: Piece | null; progress: number; total: number; el?: React.RefObject<HTMLDivElement | null> }) {
-  const { camera, size } = useThree();
-  const v = useMemo(() => new THREE.Vector3(), []);
-  useFrame(() => {
-    const node = el?.current;
-    if (!node) return;
-    if (!piece) { node.style.opacity = "0"; return; }
-    const t = ease((progress - pieceStart(piece, total)) / 0.3);
-    v.set(piece.pos[0] + piece.from[0] * (1 - t), piece.pos[1] + piece.from[1] * (1 - t), piece.pos[2] + piece.from[2] * (1 - t) + 0.045).project(camera);
-    const x = (v.x * 0.5 + 0.5) * size.width, y = (-v.y * 0.5 + 0.5) * size.height;
-    node.style.opacity = "1";
-    node.style.transform = `translate(-50%, -100%) translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
-    const text = piece.label + (piece.price !== undefined ? `  $${piece.price.toFixed(2)}` : "");
-    if (node.textContent !== text) node.textContent = text;
-  });
-  return null;
+/** Static by default; progress changes only during an explicit Build action. */
+export function RobotModel({ pieces, progress = 1.15, ...interaction }: { pieces: Piece[]; progress?: number } & PartInteraction) {
+  const total = Math.max(...pieces.map(p => p.order), 1) + 1;
+  return <group>{pieces.map(p => <PieceMesh key={p.id} p={p} progress={progress} total={total} {...interaction} />)}</group>;
 }
 
 type ViewMode = "play" | "assembled" | "exploded";
 
-function Player({ pieces, playing, onDone, labelEl, mode, ...interaction }: { pieces: Piece[]; playing: boolean; onDone: () => void; labelEl: React.RefObject<HTMLDivElement | null>; mode: ViewMode } & PartInteraction) {
+function Player({ pieces, onDone, mode, ...interaction }: { pieces: Piece[]; onDone: () => void; mode: ViewMode } & PartInteraction) {
   const [progress, setProgress] = useState(0);
-  const pRef = useRef(0);
+  const elapsed = useRef(0);
+  const ended = useRef(false);
   useFrame((_, dt) => {
-    if (mode === "assembled") { if (pRef.current !== 1.15) { pRef.current = 1.15; setProgress(1.15); } if (playing) onDone(); return; }
-    if (mode === "exploded") { pRef.current = Math.max(0, pRef.current - dt * 1.5); setProgress(pRef.current); return; }
-    if (!playing) return;
-    pRef.current = Math.min(1.15, pRef.current + dt / 7);  // ~8 s full assembly
-    setProgress(pRef.current);
-    if (pRef.current >= 1.15) onDone();
+    if (mode !== "play" || ended.current) return;
+    elapsed.current = Math.min(1.5, elapsed.current + dt);
+    setProgress(elapsed.current / 1.5 * 1.15);
+    if (elapsed.current >= 1.5) { ended.current = true; onDone(); }
   });
-  return <RobotModel pieces={pieces} progress={progress} labels={mode === "play"} labelEl={labelEl} {...interaction} />;
+  return <RobotModel pieces={pieces} progress={mode === "assembled" ? 1.15 : mode === "exploded" ? 0 : progress} {...interaction} />;
 }
 
-/** Panel: exploded parts fly in and assemble into the full robot. */
-export function AssemblyViewer({ spec, parts, body, board, status, className, onDone, preview = false, selected, onSelect, focusLeft = false }: { spec: RobotSpec | null; parts: PartsSelection | null; body: BodyArtifact | null; board: BoardArtifact | null; status?: string; className?: string; onDone?: () => void; preview?: boolean; focusLeft?: boolean } & PartInteraction) {
+/** Still assembly. Build is a one-shot, presenter-triggered 1.5 second action. */
+export function AssemblyViewer({ spec, parts, body, board, className, onDone, selected, onSelect, viewport }: { spec: RobotSpec | null; parts: PartsSelection | null; body: BodyArtifact | null; board: BoardArtifact | null; className?: string; onDone?: () => void; viewport?: ReturnType<typeof useViewport> } & PartInteraction) {
   const pieces = useMemo(() => buildPieces(spec, parts, body, board), [spec, parts, body, board]);
   const [key, setKey] = useState(0);
-  const [playing, setPlaying] = useState(!preview);
-  const [mode, setMode] = useState<ViewMode>(preview ? "assembled" : "play");
-  const controls = useViewport();
+  const [mode, setMode] = useState<ViewMode>("assembled");
+  const localControls = useViewport();
+  const controls = viewport ?? localControls;
   const [hover, setHover] = useState<PartHover>(null);
-  const labelEl = useRef<HTMLDivElement | null>(null);
   return (
     <div className={`panel relative overflow-hidden ${className ?? "h-[520px]"}`}>
       <ViewportTools controls={controls} exploded={mode === "exploded"} onExplode={() => setMode(m => m === "exploded" ? "assembled" : "exploded")} />
       <div className="assembly-modes segment">
-        {([["play", "Build"], ["assembled", "Assembled"], ["exploded", "Exploded"]] as [ViewMode, string][]).map(([m, l]) => <button key={m} aria-pressed={mode === m} onClick={() => { if (m === "play") { setKey(k => k + 1); setPlaying(true); } setMode(m); }} className={mode === m ? "active" : ""}>{l}</button>)}
+        {([["play", "Build"], ["assembled", "Assembled"], ["exploded", "Exploded"]] as [ViewMode, string][]).map(([m, l]) => <button key={m} disabled={m === "play" && mode === "play"} aria-pressed={mode === m} onClick={() => { if (m === "play") { setKey(k => k + 1); } setMode(m); }} className={mode === m ? "active" : ""}>{l}</button>)}
       </div>
       <PartTooltip hover={hover} />
-      <div ref={labelEl} className="pointer-events-none absolute left-0 top-0 z-10 whitespace-nowrap rounded-md border border-acc/60 bg-ink/90 px-2 py-1 text-sm text-slate-900 shadow-lg" style={{ opacity: 0 }} />
-      <Canvas key={key} onPointerMissed={() => onSelect?.(null)} shadows camera={{ position: [0.3, -0.36, 0.22], up: [0, 0, 1], fov: 38 }}>
+      <Canvas onPointerMissed={() => onSelect?.(null)} shadows camera={{ position: [0.3, -0.36, 0.22], up: [0, 0, 1], fov: 38 }}>
         <StudioLights />
         <BlueprintFloor height={-((body?.wheel_diameter_mm ?? 60) / 2000)} />
-        <Player pieces={pieces} playing={playing && Boolean(parts && body)} onDone={() => { setPlaying(false); onDone?.(); }} labelEl={labelEl} mode={mode} selected={selected} onSelect={onSelect} onHover={setHover} />
-        <CameraRig focusLeft={focusLeft} view={controls.view} radius={mode === "exploded" ? 0.8 : Math.max(0.18, ...pieces.map(p => Math.hypot(...p.pos) + Math.max(...p.size) / 2))} />
+        <Player key={key} pieces={pieces} onDone={() => { setMode("assembled"); onDone?.(); }} mode={mode} selected={selected} onSelect={onSelect} onHover={setHover} />
+        <CameraRig view={controls.view} radius={mode === "exploded" ? 0.8 : Math.max(0.18, ...pieces.map(p => Math.hypot(...p.pos) + Math.max(...p.size) / 2))} />
       </Canvas>
     </div>
   );

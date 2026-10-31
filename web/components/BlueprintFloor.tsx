@@ -9,7 +9,7 @@ export function BlueprintFloor({ size = 1, zUp = true, height = 0 }: { size?: nu
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 2048;
     const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#eaf2fb"; ctx.fillRect(0, 0, 2048, 2048);
+    ctx.fillStyle = "#eef4fb"; ctx.fillRect(0, 0, 2048, 2048);
     const mm = size * 1000, scale = 2048 / mm;
     for (let n = 0; n <= mm; n += 10) {
       const p = n * scale;
@@ -41,7 +41,7 @@ class ReflectionFallback extends Component<{ children: ReactNode }, { failed: bo
 }
 export function StudioLights({ zUp = true }: { zUp?: boolean }) {
   return <>
-    <color attach="background" args={["#f7f8fa"]} />
+    <color attach="background" args={["#eef4fb"]} />
     <hemisphereLight args={["#ffffff", "#b7c6da", 1.5]} />
     <directionalLight position={zUp ? [1, -2, 4] : [1, 4, 2]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0001} />
     <ReflectionFallback><Suspense fallback={null}><Environment preset="city" environmentIntensity={0.45} /></Suspense></ReflectionFallback>

@@ -7,10 +7,8 @@ const STYLE: Record<RunStatus, string> = {
 
 export function StatusPill({ status }: { status?: RunStatus }) {
   if (!status) return <span className="pill bg-slate-100 text-slate-600">loading</span>;
-  const live = status !== "passed" && status !== "failed";
   return (
     <span className={`pill ${STYLE[status]}`}>
-      {live && <span className="h-2 w-2 animate-pulse rounded-full bg-current" />}
       {status}
     </span>
   );

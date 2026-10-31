@@ -59,3 +59,34 @@ Requested logical groups / attempted messages:
 6. `Document blueprint CAD workspace and integration notes` — this section.
 
 Some files span groups because staging was blocked throughout; a single explicit-path UI commit is also safe. Run `cd web && npx tsc --noEmit` immediately before committing.
+
+## 2026-10-30 — Owner follow-up: calm Etch-style workbench
+
+This section supersedes the earlier motion/auto-play behavior. The owner requested a still CAD tool, so the default robot is now fully assembled and stationary.
+
+### Changes
+
+- Removed hero turntable rotation; added manual OrbitControls with damping disabled. There are no idle rotations anywhere.
+- Assembly defaults to Assembled. Exploded applies fixed offsets immediately. Build is optional, starts only on a button click, settles within 1.5 seconds total, and switches back to Assembled. Repeated clicks during the build are disabled. Removed per-piece frame updates and the old flying-label frame handler.
+- Simulation camera no longer follows the robot. It fits the trajectory bounds once, then stays fixed unless the user orbits or chooses a preset. Replay clamps at the last frame instead of wrapping. The small Replay button explicitly restarts it; completed attempts are remembered by the Director so revisiting them does not automatically replay.
+- Finished runs open on the final simulation frame, with BuildPack in the right panel. No completion overlay or celebration obscures the viewport.
+- Removed all Director presentation clocks, auto-play UI, assembly-completion sequencing, progressive parts spotlight timers, confetti, pulse dots and ping classes (including `/live`). Stages derive solely from available backend artifacts, reports, critic results, iteration and terminal status. Manual stage browsing survives identical polls; a genuinely new backend milestone advances the displayed stage.
+- Stage changes use a 150ms native View Transition crossfade where supported, with a 150ms opacity fade fallback. No scheduling timers are involved. Camera preset transitions last 350ms and run only on explicit control clicks. Initial framing is immediate, not an entrance animation. All orbit damping is disabled.
+- Reworked the chrome around the supplied Etch screenshot: compact white breadcrumb header (`roboforge / runs / <serif prompt>`), quiet status text, functional Copy link / Build pack / Share buttons, separate grey-icon toolbar and centered 3D / Top / Ortho control, edge-to-edge pale `#eef4fb` viewport, top-left cube and circular tools, fixed 400px desktop parts panel (narrower responsive widths), Parts / This robot tabs, serif Parts title, Selected/group filter with actual component count and search, two-column grey component cards, bottom attribution, dark Ask input, and Settings / Snap grid 1.0 mm readouts. Step tape is a quiet manual navigation strip. Plan/critic detail lives in the right panel.
+- `/live` uses the same header/workbench as `/run/[runId]` and has a still waiting screen. Backend polling behavior is preserved.
+
+### Audit and verification
+
+Read/audited all motion matches from `rg` over components, pages, and `useRun`: the only `useFrame` callbacks left are the explicitly triggered Build action, bounded trajectory playback, and user-requested camera transitions. No `setInterval`, `animate-*`, turntable increment, follow camera, or modulo-based replay remains. Only two opacity keyframes remain (150ms in/out). `setTimeout` remains exclusively in backend network polling (`useRun.ts` and `/live`), which is required for data-driven progression and is not a presentation timer.
+
+`cd web && npx tsc --noEmit` passes. `git diff --check` passes. HTTP checks on the existing localhost:3001 server returned 200 for `/`, `/run/preview`, and `/live`. No tests, screenshots, backend edits, dependencies, or server restarts. Etch's board URL could not be opened by the browsing tool; layout matching used the owner's attached screenshots and explicit measurements. Pixel-exact visual equivalence has not been screenshot-verified.
+
+### Commit status
+
+Still on `main`. Local commits were attempted after passing TypeScript, but `git add` is denied with `.git/index.lock: Operation not permitted`; changes remain uncommitted for Claude's permitted shell. Intended commits:
+
+1. `Make robot workspace still and match Etch board layout`
+2. `Keep completed replays still and use brief stage crossfades`
+3. `Document calm workspace motion audit and handoff`
+
+Stage only the modified `web/` files plus `CODEX_NOTES.md`; the new file is `web/components/CADHeader.tsx`. No backend files belong to these changes. Run `cd web && npx tsc --noEmit` before committing.
