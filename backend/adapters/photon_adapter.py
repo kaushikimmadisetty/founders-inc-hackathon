@@ -98,23 +98,26 @@ class PhotonAdapter:
         return att["id"]
 
     async def _send(self, to: str, content: dict) -> None:
+        c = await self._conversation(to)
+        await self._post("/messages", json={"spaceId": c.space_id, "senderId": c.agent_user_id, "content": content},
+                         headers={"Idempotency-Key": f"roboforge-msg:{uuid.uuid4()}"})
+
+    async def send_text(self, to: str, body: str) -> None:
         try:
-            c = await self._conversation(to)
-            await self._post("/messages", json={"spaceId": c.space_id, "senderId": c.agent_user_id, "content": content},
-                             headers={"Idempotency-Key": f"roboforge-msg:{uuid.uuid4()}"})
+            await self._send(to, _text(body))
         except Exception as e:
             log.warning("photon send to %s failed: %s", to, e)
 
-    async def send_text(self, to: str, body: str) -> None:
-        await self._send(to, _text(body))
-
     async def send_media(self, to: str, media_url: str, body: str = "") -> None:
+        # iMessage on Photon Beta rejects text+image groups (UNSUPPORTED_CONTENT),
+        # so the text and the image go as two messages.
+        if body:
+            await self.send_text(to, body)
         try:
-            att = {"type": "attachment", "attachmentId": await self._upload(media_url)}
+            await self._send(to, {"type": "attachment", "attachmentId": await self._upload(media_url)})
         except Exception as e:
-            log.warning("photon upload of %s failed, sending link instead: %s", media_url, e)
-            return await self.send_text(to, f"{body}\n{media_url}".strip())
-        await self._send(to, {"type": "group", "parts": [_text(body), att]} if body else att)
+            log.warning("photon media to %s failed, sending link instead: %s", to, e)
+            await self.send_text(to, media_url)
 
 
 def _text(body: str) -> dict:

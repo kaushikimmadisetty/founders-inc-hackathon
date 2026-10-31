@@ -58,18 +58,40 @@ def test_reply_uses_inbound_conversation(tmp_path, monkeypatch):
         await a.send_media("+14155550123", f"{config.BACKEND_BASE_URL}/artifacts/run1/sim.gif", "Passed")
     asyncio.run(go())
 
-    assert [c.url.path for c in calls] == [f"/v1/projects/{PRJ}/messages", f"/v1/projects/{PRJ}/attachments", f"/v1/projects/{PRJ}/messages"]
+    msgs, atts = f"/v1/projects/{PRJ}/messages", f"/v1/projects/{PRJ}/attachments"
+    assert [c.url.path for c in calls] == [msgs, msgs, atts, msgs]
     first = json.loads(calls[0].content)
     assert first == {"spaceId": "pho_spc_1", "senderId": "pho_usr_agent", "content": {"type": "text", "format": "plain", "text": "On it"}}
     assert all(c.headers.get("Idempotency-Key") for c in calls)
-    upload = calls[1]
+    assert json.loads(calls[1].content)["content"]["text"] == "Passed"
+    upload = calls[2]
     assert upload.headers["Content-Type"].startswith("multipart/related")
     assert b'"contentType": "image/gif"' in upload.content and b"GIF89a-fake" in upload.content
-    media = json.loads(calls[2].content)["content"]
-    assert media["type"] == "group" and media["parts"][1] == {"type": "attachment", "attachmentId": "pho_att_1"}
+    assert json.loads(calls[3].content)["content"] == {"type": "attachment", "attachmentId": "pho_att_1"}
 
 
 def test_unknown_recipient_on_shared_line_does_not_send():
     calls = []
     asyncio.run(_adapter(calls).send_text("+19999999999", "hello"))
     assert calls == []
+
+
+def test_rejected_media_falls_back_to_link(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_DIR", tmp_path)
+    (tmp_path / "sim.gif").write_bytes(b"GIF89a")
+    sent = []
+
+    def handler(req: httpx.Request):
+        if req.url.path.endswith("/attachments"):
+            return httpx.Response(201, json={"id": "pho_att_1"})
+        content = json.loads(req.content)["content"]
+        if content["type"] == "attachment":
+            return httpx.Response(422, json={"code": "UNSUPPORTED_CONTENT"})
+        sent.append(content["text"])
+        return httpx.Response(202, json={"id": "pho_msg_out"})
+    a = PhotonAdapter("pho_sk_test", PRJ)
+    a._http = httpx.AsyncClient(base_url=f"{a.BASE}/projects/{PRJ}", transport=httpx.MockTransport(handler))
+    a.remember(parse_photon_webhook(_event({"type": "text", "format": "plain", "text": "hi"})))
+    url = f"{config.BACKEND_BASE_URL}/artifacts/sim.gif"
+    asyncio.run(a.send_media("+14155550123", url, "Passed"))
+    assert sent == ["Passed", url]
