@@ -197,6 +197,7 @@ class RunCreate(BaseModel):
     prompt: str
     source: Literal["imessage", "web"] = "web"
     phone: Optional[str] = None
+    parent_run_id: Optional[str] = None   # set to revise an earlier robot instead of starting fresh
 
 
 class RunState(BaseModel):
@@ -204,6 +205,8 @@ class RunState(BaseModel):
     prompt: str
     source: str
     phone: Optional[str] = None
+    parent_run_id: Optional[str] = None
+    modification: Optional[str] = None     # the user's change request when this run revises a parent
     status: RunStatus = "planning"
     iteration: int = 0
     spec: Optional[RobotSpec] = None

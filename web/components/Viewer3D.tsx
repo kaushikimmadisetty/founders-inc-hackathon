@@ -1,20 +1,21 @@
 "use client";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Grid } from "@react-three/drei";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { BodyArtifact, RobotSpec, SimReport, Trajectory } from "@/lib/types";
+import { BodyArtifact, BoardArtifact, PartsSelection, RobotSpec, SimReport, Trajectory } from "@/lib/types";
+import { RobotModel, buildPieces } from "./Robot3D";
 
 /** Replays trajectory.json. Geometry mirrors the MJCF primitives (box chassis,
  *  cylinder wheels), scene drawn from the task id. No meshes needed. */
-export function Viewer3D({ report, spec, body }: { report: SimReport; spec: RobotSpec | null; body: BodyArtifact | null }) {
+export function Viewer3D({ report, spec, body, parts, board }: { report: SimReport; spec: RobotSpec | null; body: BodyArtifact | null; parts?: PartsSelection | null; board?: BoardArtifact | null }) {
+  const pieces = useMemo(() => buildPieces(spec, parts ?? null, body, board ?? null), [spec, parts, body, board]);
   const [traj, setTraj] = useState<Trajectory | null>(null);
   useEffect(() => {
     if (!report.trajectory_url) return;
     fetch(report.trajectory_url).then((r) => r.json()).then(setTraj).catch(() => setTraj(null));
   }, [report.trajectory_url]);
 
-  const dims = body?.dims_mm ?? [200, 160, 60];
   const wheelR = (body?.wheel_diameter_mm ?? 60) / 2000;
   const taskId = spec?.task.id ?? "drive_loop";
 
@@ -29,7 +30,9 @@ export function Viewer3D({ report, spec, body }: { report: SimReport; spec: Robo
         <directionalLight position={[2, -2, 4]} intensity={1.2} />
         <Grid args={[6, 6]} cellSize={0.1} sectionSize={0.5} rotation={[Math.PI / 2, 0, 0]} cellColor="#2a3142" sectionColor="#3b82f6" fadeDistance={6} />
         <Scene taskId={taskId} />
-        <Robot traj={traj} dims={dims} wheelR={wheelR} template={traj?.template ?? spec?.template ?? "diff_drive_rover"} />
+        <Robot traj={traj} wheelR={wheelR} template={traj?.template ?? spec?.template ?? "diff_drive_rover"}>
+          <RobotModel pieces={pieces} />
+        </Robot>
         <OrbitControls target={[1, 0, 0]} />
       </Canvas>
       {!traj && <p className="absolute inset-0 flex items-center justify-center text-slate-500">loading trajectory…</p>}
@@ -68,10 +71,9 @@ function Scene({ taskId }: { taskId: string }) {
   );
 }
 
-function Robot({ traj, dims, wheelR, template }: { traj: Trajectory | null; dims: number[]; wheelR: number; template: string }) {
+function Robot({ traj, wheelR, template, children }: { traj: Trajectory | null; wheelR: number; template: string; children: React.ReactNode }) {
   const ref = useRef<THREE.Group>(null);
   const frame = useRef(0);
-  const [L, W, H] = dims.map((d) => d / 1000);
   const isMecanum = template !== "diff_drive_rover";
   useFrame((_, dt) => {
     if (!traj || !ref.current || traj.frames.length === 0) return;
@@ -85,15 +87,5 @@ function Robot({ traj, dims, wheelR, template }: { traj: Trajectory | null; dims
       ref.current.quaternion.set(q[4], q[5], q[6], q[3]); // mujoco wxyz -> three xyzw
     }
   });
-  const wheels: [number, number][] = isMecanum
-    ? [[L * 0.35, W / 2 + 0.017], [L * 0.35, -(W / 2 + 0.017)], [-L * 0.35, W / 2 + 0.017], [-L * 0.35, -(W / 2 + 0.017)]]
-    : [[L * 0.25, W / 2 + 0.012], [L * 0.25, -(W / 2 + 0.012)]];
-  return (
-    <group ref={ref} position={[0, 0, wheelR]}>
-      <mesh position={[0, 0, H / 2]}><boxGeometry args={[L, W, H]} /><meshStandardMaterial color="#3b82f6" /></mesh>
-      {wheels.map(([x, y], i) => <mesh key={i} position={[x, y, 0]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[wheelR, wheelR, 0.02, 24]} /><meshStandardMaterial color="#111" /></mesh>)}
-      {!isMecanum && <mesh position={[-L * 0.4, 0, -(wheelR - 0.012)]}><sphereGeometry args={[0.012]} /><meshStandardMaterial color="#555" /></mesh>}
-      {template === "mecanum_arm" && <mesh position={[L * 0.3 + 0.075, 0, H + 0.02]}><boxGeometry args={[0.15, 0.016, 0.016]} /><meshStandardMaterial color="#ccc" /></mesh>}
-    </group>
-  );
+  return <group ref={ref} position={[0, 0, wheelR]}>{children}</group>;
 }

@@ -37,10 +37,46 @@ def heuristic_plan(run_id: str, prompt: str) -> RobotSpec:
                      constraints=cons, params=params, sensors=sensors, task=task)
 
 
-async def plan(run_id: str, prompt: str) -> RobotSpec:
+def apply_modification(spec: RobotSpec, modification: str) -> RobotSpec:
+    """Keyword fallback for 'tweak it' requests. Keeps the template and task unless asked otherwise."""
+    m = modification.lower()
+    s = spec.model_copy(deep=True)
+    if any(k in m for k in ("cheaper", "budget", "less expensive", "cost")):
+        s.constraints.budget_usd = round(s.constraints.budget_usd * 0.7)
+    if any(k in m for k in ("faster", "quicker", "speed")):
+        s.params.wheel_diameter_mm = min(100, s.params.wheel_diameter_mm + 20)
+    if any(k in m for k in ("smaller", "compact", "tiny", "lower", "shorter", "flatter")):
+        s.params.chassis_length_mm = max(120, s.params.chassis_length_mm * 0.8)
+        s.params.chassis_width_mm = max(100, s.params.chassis_width_mm * 0.8)
+        s.params.chassis_height_mm = max(25, s.params.chassis_height_mm * 0.8)
+        s.constraints.max_height_mm = min(s.constraints.max_height_mm, s.params.chassis_height_mm + s.params.wheel_diameter_mm / 2 + 20)
+    if any(k in m for k in ("bigger", "larger", "wider", "stronger", "heavier load", "carry more")):
+        s.params.chassis_length_mm = min(300, s.params.chassis_length_mm * 1.2)
+        s.params.chassis_width_mm = min(250, s.params.chassis_width_mm * 1.2)
+        s.constraints.max_mass_kg = round(s.constraints.max_mass_kg * 1.3, 1)
+    if "camera" in m and ("add" in m or "with" in m) and "camera" not in s.sensors:
+        s.sensors.append("camera")
+    if ("no camera" in m or "remove the camera" in m or "without camera" in m) and "camera" in s.sensors:
+        s.sensors.remove("camera")
+    if any(k in m for k in ("tof", "distance sensor", "lidar", "obstacle sensor")) and not any(x.startswith("tof") for x in s.sensors):
+        s.sensors.append("tof_front")
+    if any(k in m for k in ("arm", "gripper", "grab", "pick up")) and s.template != "mecanum_arm":
+        s.template = "mecanum_arm"
+        s.params.arm_reach_mm = s.params.arm_reach_mm or 150
+    if any(k in m for k in ("longer runtime", "battery life", "run longer", "more battery")):
+        s.constraints.target_runtime_min = round(s.constraints.target_runtime_min * 1.5)
+    s.rationale = f"revision of previous design: {modification}"
+    return s
+
+
+async def plan(run_id: str, prompt: str, previous: RobotSpec | None = None, modification: str | None = None) -> RobotSpec:
     try:
-        spec = await llm.structured(llm.load_prompt("planner", run_id=run_id), f"Robot idea: {prompt}", RobotSpec,
-                                    model=config.PLANNER_MODEL)
+        user = f"Robot idea: {prompt}"
+        if previous and modification:
+            user = (f"The user already has this robot design:\n{previous.model_dump_json(indent=1)}\n\n"
+                    f"They texted this change request: \"{modification}\"\n"
+                    f"Produce the revised RobotSpec. Keep everything they did not ask to change. Say what changed in `rationale`.")
+        spec = await llm.structured(llm.load_prompt("planner", run_id=run_id), user, RobotSpec, model=config.PLANNER_MODEL)
         spec.run_id = run_id
         spec.user_prompt = prompt
         if spec.template == "mecanum_arm" and spec.params.arm_reach_mm is None:
@@ -48,4 +84,8 @@ async def plan(run_id: str, prompt: str) -> RobotSpec:
         return spec
     except Exception as e:
         log.warning("planner LLM failed, heuristic fallback: %s", e)
+        if previous and modification:
+            s = apply_modification(previous, modification)
+            s.run_id, s.user_prompt = run_id, prompt
+            return s
         return heuristic_plan(run_id, prompt)

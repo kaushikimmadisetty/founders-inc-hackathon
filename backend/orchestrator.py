@@ -15,7 +15,11 @@ from models import RunState, SimReport
 from sim import assembler, runner
 
 log = logging.getLogger("orchestrator")
+TEMPLATE_LABEL = {"diff_drive_rover": "2-wheel rover with caster", "mecanum_base": "4-wheel mecanum base",
+                  "mecanum_arm": "mecanum base with 3-DOF arm and gripper"}
 RUNS: dict[str, RunState] = {}
+LAST_RUN_BY_PHONE: dict[str, str] = {}   # handle -> most recent run_id, so a follow-up text revises that robot
+MODIFICATION_WINDOW_S = 45 * 60
 
 
 def url_for(p: Path) -> str:
@@ -45,6 +49,20 @@ class Run:
                 await self.msg.send_media(self.s.phone, media, body)
             else:
                 await self.msg.send_text(self.s.phone, body)
+
+    def link(self) -> str:
+        return f"{config.PUBLIC_BASE_URL}/run/{self.s.run_id}"
+
+    def pass_summary(self, rep: SimReport) -> str:
+        sp, parts, body = self.s.spec, self.s.parts, self.s.body
+        m = rep.metrics
+        top = [p for p in parts.parts if p.role in ("drive_motor", "mcu", "battery", "camera", "servo")]
+        lines = [f"Passed in simulation on attempt {self.s.iteration} ({m.time_s:.1f} s, {sp.task.description}).",
+                 f"{TEMPLATE_LABEL[sp.template]}, {body.dims_mm[0]:.0f}x{body.dims_mm[1]:.0f}x{body.dims_mm[2]:.0f} mm chassis, {m.total_mass_kg*1000:.0f} g.",
+                 "Key parts: " + "; ".join(f"{p.qty}x {p.name}" for p in top[:4]) + ".",
+                 f"BOM ${parts.total_usd:.2f} for {sum(p.qty for p in parts.parts)} parts.",
+                 f"Build pack (STL, PCB, MJCF, controller): {self.link()}"]
+        return "\n".join(lines)
 
     def it_dir(self) -> Path:
         d = self.dir / f"it{self.s.iteration}"
@@ -116,10 +134,18 @@ class Run:
     async def execute(self):
         try:
             await self.status("planning")
-            await self.ev("planner", "start", "Reading your idea")
-            self.s.spec = await planner.plan(self.s.run_id, self.s.prompt)
-            await self.ev("planner", "done", f"{self.s.spec.template} / {self.s.spec.task.id}: {self.s.spec.rationale}", self.s.spec.model_dump())
-            await self.text(f"On it. Designing a {self.s.spec.template.replace('_', ' ')} for: {self.s.prompt}\nWatch live: {config.PUBLIC_BASE_URL}/run/{self.s.run_id}")
+            parent = RUNS.get(self.s.parent_run_id) if self.s.parent_run_id else None
+            if parent and self.s.modification:
+                await self.ev("planner", "start", f"Revising previous design: {self.s.modification}")
+                await self.text(f"Got it: \"{self.s.modification}\". Revising your robot and re-testing it.\nWatch live: {self.link()}")
+            else:
+                await self.ev("planner", "start", "Reading your idea")
+                await self.text(f"On it. Designing your robot and testing it in physics simulation before anything gets built.\nWatch live: {self.link()}")
+            self.s.spec = await planner.plan(self.s.run_id, self.s.prompt, parent.spec if parent else None, self.s.modification)
+            sp = self.s.spec
+            await self.ev("planner", "done", f"{sp.template} / {sp.task.id}: {sp.rationale}", sp.model_dump())
+            await self.text(f"Plan: {TEMPLATE_LABEL[sp.template]}. Test: {sp.task.description}. Budget ${sp.constraints.budget_usd:.0f}."
+                            + (f" {sp.rationale}" if "closest" in sp.rationale.lower() or "map" in sp.rationale.lower() else ""))
 
             self.s.iteration = 1
             await self.status("building")
@@ -133,18 +159,21 @@ class Run:
                 rep = await self.do_sim()
                 if rep.passed:
                     await self.status("passed")
-                    await self.text(f"Passed in sim on attempt {self.s.iteration}. BOM ${self.s.parts.total_usd:.0f}. Build pack: {config.PUBLIC_BASE_URL}/run/{self.s.run_id}", rep.gif_url)
+                    await self.text(self.pass_summary(rep), rep.gif_url)
+                    if self.s.board and self.s.board.render_png_url:
+                        await self.text(f"Carrier PCB ({self.s.board.outline_mm[0]:.0f}x{self.s.board.outline_mm[1]:.0f} mm, {len(self.s.board.bom_lines)} parts) and printable chassis are in the build pack.\n"
+                                        f"Reply with a change (\"make it cheaper\", \"add a camera\", \"smaller\") and I'll redesign and re-test.", self.s.board.render_png_url)
                     return
                 if self.s.iteration >= config.MAX_ITERATIONS:
                     await self.status("failed")
-                    await self.text(f"Closest design after {self.s.iteration} attempts still fails: {rep.failure_detail}. Details: {config.PUBLIC_BASE_URL}/run/{self.s.run_id}", rep.gif_url)
+                    await self.text(f"Closest design after {self.s.iteration} attempts still fails: {rep.failure_detail}.\nBOM ${self.s.parts.total_usd:.0f}. Details and build pack: {self.link()}\nReply with a change and I'll try again.", rep.gif_url)
                     return
                 await self.status("revising")
                 await self.ev("critic", "start", "Diagnosing failure")
                 verdict = await critic_agent.critique(self.s, rep)
                 self.s.critic_history.append(verdict)
                 await self.ev("critic", "done", verdict.summary, verdict.model_dump())
-                await self.text(f"Attempt {self.s.iteration} failed: {verdict.summary} Fixing.")
+                await self.text(f"Attempt {self.s.iteration} failed in sim: {verdict.summary}")
 
                 self.s.iteration += 1
                 await self.status("building")
@@ -173,11 +202,42 @@ class Run:
             await self.ev("sim", "error", f"Run crashed: {e}")
 
 
-def start_run(prompt: str, source: str = "web", phone: str | None = None) -> RunState:
-    state = RunState(run_id=str(uuid.uuid4()), prompt=prompt, source=source, phone=phone)
+def start_run(prompt: str, source: str = "web", phone: str | None = None, parent_run_id: str | None = None) -> RunState:
+    """New run, or a revision of `parent_run_id` where `prompt` is the change request."""
+    parent = RUNS.get(parent_run_id) if parent_run_id else None
+    if parent:
+        state = RunState(run_id=str(uuid.uuid4()), prompt=f"{parent.prompt} (revised: {prompt})", source=source, phone=phone,
+                         parent_run_id=parent.run_id, modification=prompt)
+    else:
+        state = RunState(run_id=str(uuid.uuid4()), prompt=prompt, source=source, phone=phone)
     RUNS[state.run_id] = state
+    _created_ms[state.run_id] = time.time() * 1000
+    if phone:
+        LAST_RUN_BY_PHONE[phone] = state.run_id
     asyncio.create_task(Run(state).execute())
     return state
+
+
+NEW_IDEA_MARKERS = ("robot", "rover", "bot ", "build me", "make me", "i want a", "new:", "design a", "something that")
+
+
+def classify_inbound(phone: str, text: str) -> str | None:
+    """Return the parent run_id if this text reads as a tweak to the sender's recent robot, else None."""
+    rid = LAST_RUN_BY_PHONE.get(phone)
+    if not rid or rid not in RUNS:
+        return None
+    parent = RUNS[rid]
+    t = text.lower().strip()
+    if t.startswith("new") or any(k in t for k in NEW_IDEA_MARKERS):
+        return None
+    if parent.status not in ("passed", "failed"):
+        return None  # still running; treat as a fresh idea rather than interrupt
+    if time.time() * 1000 - _created_ms.get(rid, 0) > MODIFICATION_WINDOW_S * 1000:
+        return None
+    return rid
+
+
+_created_ms: dict[str, float] = {}
 
 
 async def run_sync(prompt: str) -> RunState:

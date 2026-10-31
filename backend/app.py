@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 import config
 from adapters.photon_adapter import PhotonAdapter, get_messaging, parse_photon_webhook
 from models import RunCreate, RunState
-from orchestrator import RUNS, start_run
+from orchestrator import RUNS, classify_inbound, start_run
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 app = FastAPI(title="RoboForge", version="0.1.0")
@@ -28,7 +28,9 @@ async def health():
 async def create_run(body: RunCreate):
     if not body.prompt.strip():
         raise HTTPException(400, "empty prompt")
-    return start_run(body.prompt.strip(), body.source, body.phone)
+    if body.parent_run_id and body.parent_run_id not in RUNS:
+        raise HTTPException(404, "unknown parent run")
+    return start_run(body.prompt.strip(), body.source, body.phone, body.parent_run_id)
 
 
 @app.get("/runs/{run_id}", response_model=RunState)
@@ -53,5 +55,6 @@ async def photon_webhook(req: Request):
     messaging = get_messaging()
     if isinstance(messaging, PhotonAdapter):
         messaging.remember(msg)
-    state = start_run(msg.text, "imessage", msg.handle)
-    return {"ok": True, "run_id": state.run_id}
+    parent = classify_inbound(msg.handle, msg.text)
+    state = start_run(msg.text, "imessage", msg.handle, parent)
+    return {"ok": True, "run_id": state.run_id, "revises": parent}

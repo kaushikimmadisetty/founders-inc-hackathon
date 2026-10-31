@@ -38,6 +38,7 @@ export interface RobotSpec {
 }
 export interface RunState {
   run_id: string; prompt: string; source: string; status: RunStatus; iteration: number;
+  parent_run_id?: string | null; modification?: string | null;
   spec?: RobotSpec | null; parts?: PartsSelection | null; body?: BodyArtifact | null; board?: BoardArtifact | null;
   brain?: ControllerArtifact | null; reports: SimReport[]; critic_history: CriticVerdict[]; error?: string | null;
 }
