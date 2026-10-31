@@ -10,7 +10,12 @@ from fastapi.staticfiles import StaticFiles
 import config
 from adapters.photon_adapter import PhotonAdapter, get_messaging, parse_photon_webhook
 from models import RunCreate, RunState
-from orchestrator import RUNS, classify_inbound, load_run, recent_runs, restore_runs, start_run
+from orchestrator import RUNS, classify_inbound, load_run, recent_runs, restore_runs, start_run, start_tweak
+from pydantic import BaseModel as _BM
+
+
+class TweakBody(_BM):
+    text: str
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 app = FastAPI(title="RoboForge", version="0.1.0")
@@ -73,6 +78,17 @@ async def get_run(run_id: str):
 
 
 _seen_messages: set[str] = set()
+
+
+@app.post("/runs/{run_id}/tweak", response_model=RunState)
+async def tweak_run(run_id: str, body: TweakBody):
+    """Etch-style in-place change: same run, new iteration, parts/body/sim refreshed. Poll GET /runs/{id}; `busy` flips false when done and `tweaks[-1]` has the step timings."""
+    if not body.text.strip():
+        raise HTTPException(400, "empty change")
+    st = start_tweak(run_id, body.text.strip())
+    if st is None:
+        raise HTTPException(409, "run unknown, still building, or already applying a change")
+    return st
 
 
 @app.post("/webhooks/photon")

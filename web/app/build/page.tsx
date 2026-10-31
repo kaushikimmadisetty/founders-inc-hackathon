@@ -25,7 +25,7 @@ export default function Home() {
     if (busy || !prompt.trim()) return;
     setBusy(true); setErr(null);
     try { router.push(`/run/${await startRun(prompt)}`); }
-    catch (e) { setErr(String(e)); setBusy(false); }
+    catch { setErr("Could not connect to start your build. Please try again shortly."); setBusy(false); }
   }
 
   return (

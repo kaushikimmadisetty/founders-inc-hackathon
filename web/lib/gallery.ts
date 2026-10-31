@@ -5,10 +5,13 @@ export interface GalleryItem {
   type: "robot" | "asset"; id: string; title: string; category: string; maker: string;
   license?: string; thumbnail_url?: string | null; glb_url?: string; source_url?: string;
   dims_m?: [number, number, number]; passed?: boolean; bom_usd?: number | null; created_ms?: number;
-  stars?: number; popularity?: number;
+  stars?: number; popularity?: number; query?: string;
 }
 export interface Gallery { robots: GalleryItem[]; assets: GalleryItem[]; categories: Record<string, number>; counts: { robots: number; assets: number; makers: number }; warming: boolean }
 export function mediaUrl(url: string) { return new URL(url, new URL(`${BACKEND}/`, window.location.origin)).href; }
+export function assetMatchesId(asset: GalleryItem, id: string) {
+  return asset.id === id || asset.query?.replace(/ /g, "-") === id;
+}
 export function useGallery() {
   const [data, setData] = useState<Gallery | null>(null);
   const [error, setError] = useState(false);
@@ -16,9 +19,10 @@ export function useGallery() {
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout>;
     async function poll() {
       try {
-        const response = await fetch(`${BACKEND}/gallery`, { signal: controller.signal });
+        const response = await fetch(`${BACKEND}/gallery`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) });
         if (!response.ok) throw new Error("Gallery unavailable");
         const feed: Gallery = await response.json();
+        if (!Array.isArray(feed.assets) || !Array.isArray(feed.robots)) throw new Error("Invalid gallery response");
         if (controller.signal.aborted) return;
         setData(feed); setError(false);
         if (feed.warming) timer = setTimeout(poll, 5000);

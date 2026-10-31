@@ -13,7 +13,7 @@ export function TweakBox({ run }: { run: RunState }) {
     if (busy || !text.trim()) return;
     setBusy(true); setError(null);
     try {
-      const r = await fetch(`${BACKEND}/runs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: text.trim(), source: "web", parent_run_id: run.run_id }) });
+      const r = await fetch(`${BACKEND}/runs`, { method: "POST", signal: AbortSignal.timeout(20000), headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: text.trim(), source: "web", parent_run_id: run.run_id }) });
       if (!r.ok) throw new Error("Could not start revision. Please try again.");
       const d = await r.json(); router.push(`/run/${d.run_id}`);
     } catch (e) { setError(e instanceof Error ? e.message : "Connection failed. Please try again."); setBusy(false); }

@@ -381,3 +381,20 @@ button:hover:not(:disabled) { border-color: #c5d2e2; }
   .lp-footer { flex-direction: column; align-items: flex-start; margin-top: 64px; }
   .lp-footer nav { flex-wrap: wrap; gap: 16px 24px; }
 }
+
+/* Keep inspection usable at phone widths: viewport first, details below. */
+.parts-panel { min-width: 0; overflow-y: auto; overflow-wrap: anywhere; }
+.phone-banner { font-size: 14px; }
+.board-label, .exploded-label { font-size: 14px; }
+@media (max-width: 600px) {
+  .cad-workspace, .cad-workspace.panel-hidden { grid-template-columns: minmax(0, 1fr); grid-template-rows: 44px minmax(460px, 65svh) 44px auto; overflow-y: auto; }
+  .cad-viewport { grid-column: 1; grid-row: 2; }
+  .parts-panel { grid-column: 1; grid-row: 4; border-left: 0; border-top: 1px solid #e6e8ee; overflow: visible; }
+  .step-tape { grid-column: 1; grid-row: 3; }
+  .toolbar-left > button, .toolbar-right > button:first-child { display: none; }
+  .viewport-presets { position: static; transform: none; margin-right: auto; }
+  .workspace-toolbar .segment button { padding: 5px 10px; }
+  .viewport-message { top: 18px; left: 95px; right: 12px; }
+  .parts-panel .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cad-readout { font-size: 14px; }
+}

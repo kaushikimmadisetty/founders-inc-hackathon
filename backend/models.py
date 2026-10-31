@@ -224,3 +224,5 @@ class RunState(BaseModel):
     reports: list[SimReport] = Field(default_factory=list)
     critic_history: list[CriticVerdict] = Field(default_factory=list)
     error: Optional[str] = None
+    busy: bool = False                      # a tweak is being applied in place
+    tweaks: list[dict] = Field(default_factory=list)   # {text, started_ms, done_ms, steps:[{name, ms, note}], passed}

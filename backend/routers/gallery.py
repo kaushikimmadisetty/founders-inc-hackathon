@@ -39,6 +39,31 @@ CURATED: list[tuple[str, str, str, str]] = [
 ]
 
 _assets: dict[str, dict] = {}
+
+MAKER_FROM_REPO = {"standardbots": "Standard Bots", "Robotiq-Official": "Robotiq", "frankarobotics": "Franka Robotics",
+                   "fanuc-corporation": "Fanuc", "comau": "Comau", "agibot-assets": "AgiBot", "onrobot": "OnRobot",
+                   "teradynerobotics": "Teradyne Robotics", "LGElectronics": "LG Electronics", "nvidia": "NVIDIA",
+                   "PalatialSim": "PalatialSim", "vertiv": "Vertiv", "forgecad": "ForgeCAD"}
+
+
+def _title_from_source(url: str) -> str:
+    """'…/blob/<rev>/Robotiq_2F_140/simready_usd/Robotiq_2F_140.usda' -> 'Robotiq 2F 140'."""
+    try:
+        name = url.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        name = name.removeprefix("sm_")
+        import re
+        name = re.sub(r"_(a|b|c|d)\d\d(_\d\d)?$", "", name)   # drop NVIDIA variant suffixes like _a04_01
+        return " ".join(w if w.isupper() or any(ch.isdigit() for ch in w) else w.capitalize() for w in name.replace("_", " ").split())
+    except Exception:
+        return ""
+
+
+def _maker_from_source(url: str) -> str:
+    try:
+        owner = url.split("/datasets/", 1)[1].split("/", 1)[0]
+        return MAKER_FROM_REPO.get(owner, owner)
+    except Exception:
+        return ""
 _warming = False
 
 
@@ -53,6 +78,11 @@ async def warm_assets() -> None:
             continue
         a = await fetch_prop(query, timeout_s=90)  # big robot arms need more than the in-run 20 s cap
         if a:
+            # Search may resolve a query to a different model than we asked for; name the card after what we actually got.
+            actual = _title_from_source(a.source_url)
+            if actual and actual.lower() not in title.lower():
+                title = actual
+                maker = _maker_from_source(a.source_url) or maker
             _assets[query] = {"type": "asset", "id": query.replace(" ", "-"), "title": title, "category": category, "maker": maker,
                               "license": a.license, "thumbnail_url": a.thumbnail_url, "glb_url": a.glb_url, "obj_url": a.obj_url,
                               "dims_m": a.dims_m, "source_url": a.source_url, "query": query}

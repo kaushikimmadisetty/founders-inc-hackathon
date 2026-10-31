@@ -66,7 +66,7 @@ function PromptForm() {
     const text = prompt.trim() || "a robot that fetches my keys from under the couch";
     setBusy(true); setErr(null);
     try { router.push(`/run/${await startRun(text)}`); }
-    catch (error) { setErr(String(error)); setBusy(false); }
+    catch { setErr("Could not connect to start your build. Please try again shortly."); setBusy(false); }
   }
   return <form className="lp-prompt" onSubmit={go}>
     <div className="lp-prompt-bar">

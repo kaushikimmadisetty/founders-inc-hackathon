@@ -9,20 +9,24 @@ export function useRun(runId: string, intervalMs = 1500) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
+    const controller = new AbortController();
+    setRun(null); setError(null);
+    if (!runId) return;
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       try {
-        const r = await fetch(`${BACKEND}/runs/${runId}`, { cache: "no-store" });
-        if (!r.ok) throw new Error(`${r.status}`);
+        const r = await fetch(`${BACKEND}/runs/${encodeURIComponent(runId)}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) });
+        if (r.status === 404) { if (alive) setError("Robot not found. Choose a robot from the dashboard or start a new build."); return; }
+        if (!r.ok) throw new Error("Backend unavailable");
         const data = (await r.json()) as RunState;
         if (alive) { setRun(data); setError(null); }
         if (alive && data.status !== "passed" && data.status !== "failed") timer = setTimeout(tick, intervalMs);
-      } catch (e) {
-        if (alive) { setError(String(e)); timer = setTimeout(tick, intervalMs * 2); }
+      } catch {
+        if (alive) { setError("Cannot reach the robot backend. Retrying…"); timer = setTimeout(tick, intervalMs * 2); }
       }
     };
     tick();
-    return () => { alive = false; clearTimeout(timer); };
+    return () => { alive = false; controller.abort(); clearTimeout(timer); };
   }, [runId, intervalMs]);
   return { run, error };
 }
