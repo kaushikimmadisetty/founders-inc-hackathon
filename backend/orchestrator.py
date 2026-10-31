@@ -149,9 +149,11 @@ class Run:
 
             self.s.iteration = 1
             await self.status("building")
-            # parts first (board + body need dims), then board/body/brain fan out
-            await self.do_parts()
-            await asyncio.gather(self.do_board(), self.do_body())
+            # parts first (board + body need dims), then board/body/brain fan out.
+            # On a revision run the user's change request steers parts and body too.
+            mod = self.s.modification or ""
+            await self.do_parts(mod)
+            await asyncio.gather(self.do_board(mod), self.do_body(mod))
             _, info = assembler.assemble(self.s.spec, self.s.parts, self.s.body)
             await self.do_brain(info)
 
