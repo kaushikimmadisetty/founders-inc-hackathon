@@ -154,6 +154,8 @@ class BoardArtifact(BaseModel):
     render_png_url: Optional[str] = None
     gerbers_zip_url: Optional[str] = None
     enclosure_stl_url: Optional[str] = None
+    heypcb_url: Optional[str] = None     # the board on heypcb.ai
+    heypcb_stage: Optional[str] = None   # schematic_only, placed, routed, fab_ready, ...
 
 
 # --------------------------------------------------------------------------- brain

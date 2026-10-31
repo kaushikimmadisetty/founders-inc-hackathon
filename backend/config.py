@@ -15,6 +15,10 @@ PHOTON_PROJECT_ID = os.getenv("PHOTON_PROJECT_ID", "")
 # Optional: the agent line's number. Only needed to text someone who has not texted it first (dedicated lines).
 PHOTON_AGENT_HANDLE = os.getenv("PHOTON_AGENT_HANDLE", "")
 HEYPCB_API_KEY = os.getenv("HEYPCB_API_KEY", "")
+# Real HeyPCB boards bill the account (free trial: 3 boards), so they are opt-in: one per run.
+HEYPCB_BUILD = os.getenv("HEYPCB_BUILD", "0") == "1"
+HEYPCB_TIMEOUT_S = float(os.getenv("HEYPCB_TIMEOUT_S", "1800"))
+HEYPCB_CONTINUES = int(os.getenv("HEYPCB_CONTINUES", "3"))
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:3000").rstrip("/")
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000").rstrip("/")
 

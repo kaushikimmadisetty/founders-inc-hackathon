@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 
 import config
+from adapters import heypcb_adapter
 from adapters.convex_client import convex
 from adapters.photon_adapter import get_messaging
 from agents import board as board_agent, body as body_agent, brain as brain_agent, critic as critic_agent, parts as parts_agent, planner
@@ -32,6 +33,7 @@ class Run:
         self.s = state
         self.dir = config.STORAGE_DIR / state.run_id
         self.msg = get_messaging()
+        self._heypcb_started = False
 
     async def ev(self, agent: str, kind: str, message: str, payload=None):
         log.info("[%s][it%d] %s/%s: %s", self.s.run_id[:8], self.s.iteration, agent, kind, message)
@@ -105,6 +107,30 @@ class Run:
         if b.gerbers_zip_url:
             await convex.artifact(self.s.run_id, "gerbers", b.gerbers_zip_url, self.s.iteration, "Gerbers")
         await self.ev("board", "done", f"{b.outline_mm[0]:.0f}x{b.outline_mm[1]:.0f} mm, {len(b.bom_lines)} BOM lines, provider={b.provider}", b.model_dump())
+        if heypcb_adapter.enabled() and not self._heypcb_started:
+            self._heypcb_started = True
+            asyncio.create_task(self.upgrade_board(b))
+
+    async def upgrade_board(self, ref):
+        """Design the real board on HeyPCB alongside the sim loop, then swap it in."""
+        await self.ev("board", "progress", "HeyPCB is designing the real carrier board (takes a few minutes)")
+        art = await heypcb_adapter.design_board(ref.outline_mm, ref.mount_holes_mm, ref.bom_lines, self.s.run_id,
+                                                self.dir / "heypcb", url_for)
+        if not art:
+            await self.ev("board", "error", "HeyPCB board failed; keeping the reference board")
+            return
+        self.s.board = art.model_copy(update={"render_png_url": art.render_png_url or ref.render_png_url})
+        self.persist()
+        if art.render_png_url:
+            await convex.artifact(self.s.run_id, "pcb_render", art.render_png_url, self.s.iteration, "PCB render (HeyPCB)")
+        if art.gerbers_zip_url:
+            await convex.artifact(self.s.run_id, "gerbers", art.gerbers_zip_url, self.s.iteration, "Gerbers (HeyPCB)")
+        await self.ev("board", "done", f"HeyPCB board ready: stage={art.heypcb_stage}", self.s.board.model_dump())
+        ready = art.heypcb_stage in ("routed", "fab_ready")
+        await self.text((f"Real carrier PCB designed on HeyPCB ({art.heypcb_stage})." if ready else
+                         f"HeyPCB got the carrier PCB to '{art.heypcb_stage or 'unknown'}', not routed yet, so not ready to fab. Finish it on heypcb.ai.")
+                        + (f" Gerbers: {art.gerbers_zip_url}" if art.gerbers_zip_url else "")
+                        + (f"\nOpen it: {art.heypcb_url}" if art.heypcb_url else ""), art.render_png_url)
 
     async def do_body(self, revision=""):
         await self.ev("body", "start", "Generating parametric chassis" + (" (revising)" if revision else ""))
