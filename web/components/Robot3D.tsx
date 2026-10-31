@@ -1,6 +1,6 @@
 "use client";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Html, OrbitControls, Grid, ContactShadows } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { OrbitControls, Grid, ContactShadows } from "@react-three/drei";
 import { useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { BoardArtifact, BodyArtifact, PartsSelection, RobotSpec } from "@/lib/types";
@@ -137,7 +137,7 @@ function PieceMesh({ p, progress, total, showLabel }: { p: Piece; progress: numb
 }
 
 /** Static or animated robot; drop inside a Canvas. progress 1 = fully assembled. */
-export function RobotModel({ pieces, progress = 1, labels = false }: { pieces: Piece[]; progress?: number; labels?: boolean }) {
+export function RobotModel({ pieces, progress = 1, labels = false, labelEl }: { pieces: Piece[]; progress?: number; labels?: boolean; labelEl?: React.RefObject<HTMLDivElement | null> }) {
   const total = Math.max(...pieces.map((p) => p.order), 1) + 1;
   // label only the labelled piece currently flying in (latest started, not yet settled)
   let active: string | null = null;
@@ -152,29 +152,29 @@ export function RobotModel({ pieces, progress = 1, labels = false }: { pieces: P
   return (
     <group>
       {pieces.map((p) => <PieceMesh key={p.id} p={p} progress={progress} total={total} showLabel={false} />)}
-      {labels && <ActiveLabel piece={activePiece} progress={progress} total={total} />}
+      {labels && <ActiveLabel piece={activePiece} progress={progress} total={total} el={labelEl} />}
     </group>
   );
 }
 
-/** One always-mounted label that follows whichever part is flying in. Avoids
- *  mounting/unmounting drei Html per frame, which races React's commit. */
-function ActiveLabel({ piece, progress, total }: { piece: Piece | null; progress: number; total: number }) {
-  const ref = useRef<THREE.Group>(null);
+/** Projects the flying part's 3D position to the panel and positions a plain DOM
+ *  label (passed in via ref). No drei Html, so nothing to unmount mid-commit. */
+function ActiveLabel({ piece, progress, total, el }: { piece: Piece | null; progress: number; total: number; el?: React.RefObject<HTMLDivElement | null> }) {
+  const { camera, size } = useThree();
+  const v = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
-    if (!ref.current || !piece) return;
+    const node = el?.current;
+    if (!node) return;
+    if (!piece) { node.style.opacity = "0"; return; }
     const t = ease((progress - pieceStart(piece, total)) / 0.3);
-    ref.current.position.set(piece.pos[0] + piece.from[0] * (1 - t), piece.pos[1] + piece.from[1] * (1 - t), piece.pos[2] + piece.from[2] * (1 - t) + 0.045);
+    v.set(piece.pos[0] + piece.from[0] * (1 - t), piece.pos[1] + piece.from[1] * (1 - t), piece.pos[2] + piece.from[2] * (1 - t) + 0.045).project(camera);
+    const x = (v.x * 0.5 + 0.5) * size.width, y = (-v.y * 0.5 + 0.5) * size.height;
+    node.style.opacity = "1";
+    node.style.transform = `translate(-50%, -100%) translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+    const text = piece.label + (piece.price !== undefined ? `  $${piece.price.toFixed(2)}` : "");
+    if (node.textContent !== text) node.textContent = text;
   });
-  return (
-    <group ref={ref}>
-      <Html center zIndexRange={[10, 0]} style={{ pointerEvents: "none", whiteSpace: "nowrap", opacity: piece ? 1 : 0, transition: "opacity .15s" }}>
-        <div className="rounded-md border border-acc/60 bg-ink/90 px-2 py-1 text-xs text-slate-100 shadow-lg">
-          {piece?.label}{piece?.price !== undefined && <span className="ml-1 text-slate-400">${piece.price.toFixed(2)}</span>}
-        </div>
-      </Html>
-    </group>
-  );
+  return null;
 }
 
 function Spin({ children, on }: { children: React.ReactNode; on: boolean }) {
@@ -183,16 +183,20 @@ function Spin({ children, on }: { children: React.ReactNode; on: boolean }) {
   return <group ref={ref}>{children}</group>;
 }
 
-function Player({ pieces, playing, onDone }: { pieces: Piece[]; playing: boolean; onDone: () => void }) {
+type ViewMode = "play" | "assembled" | "exploded";
+
+function Player({ pieces, playing, onDone, labelEl, mode }: { pieces: Piece[]; playing: boolean; onDone: () => void; labelEl: React.RefObject<HTMLDivElement | null>; mode: ViewMode }) {
   const [progress, setProgress] = useState(0);
   const pRef = useRef(0);
   useFrame((_, dt) => {
+    if (mode === "assembled") { if (pRef.current !== 1.15) { pRef.current = 1.15; setProgress(1.15); } return; }
+    if (mode === "exploded") { pRef.current = Math.max(0, pRef.current - dt * 1.5); setProgress(pRef.current); return; }
     if (!playing) return;
     pRef.current = Math.min(1.15, pRef.current + dt / 7);  // ~8 s full assembly
     setProgress(pRef.current);
     if (pRef.current >= 1.15) onDone();
   });
-  return <Spin on={progress >= 1.1}><RobotModel pieces={pieces} progress={Math.min(1, progress)} labels /></Spin>;
+  return <Spin on={progress >= 1.1}><RobotModel pieces={pieces} progress={Math.min(1, progress)} labels={mode === "play"} labelEl={labelEl} /></Spin>;
 }
 
 /** Panel: exploded parts fly in and assemble into the full robot. */
@@ -200,6 +204,8 @@ export function AssemblyViewer({ spec, parts, body, board, status, className, on
   const pieces = useMemo(() => buildPieces(spec, parts, body, board), [spec, parts, body, board]);
   const [key, setKey] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [mode, setMode] = useState<ViewMode>("play");
+  const labelEl = useRef<HTMLDivElement | null>(null);
   const ready = Boolean(parts && body);
   const named = pieces.filter((p) => p.label).length;
   return (
@@ -208,14 +214,20 @@ export function AssemblyViewer({ spec, parts, body, board, status, className, on
         <span className="rounded-lg bg-acc px-3 py-1 text-sm font-bold text-white">Assembly</span>
         <span className="text-xs text-slate-300">{ready ? `${named} components → ${spec?.template.replace(/_/g, " ")}` : (status === "planning" ? "planning…" : "waiting for parts and body…")}</span>
       </div>
-      <button onClick={() => { setKey((k) => k + 1); setPlaying(true); }} className="absolute right-3 top-3 z-10 rounded-lg border border-line bg-panel/80 px-3 py-1 text-xs hover:border-acc">Replay</button>
+      <div className="absolute right-3 top-3 z-10 flex gap-1 rounded-lg border border-line bg-panel/80 p-1 text-xs">
+        {([["play", "Build"], ["assembled", "Assembled"], ["exploded", "Exploded"]] as [ViewMode, string][]).map(([m, l]) => (
+          <button key={m} onClick={() => { if (m === "play") { setKey((k) => k + 1); setPlaying(true); } setMode(m); }}
+            className={`rounded-md px-2.5 py-1 ${mode === m ? "bg-acc text-white" : "text-slate-300 hover:text-white"}`}>{l}</button>
+        ))}
+      </div>
+      <div ref={labelEl} className="pointer-events-none absolute left-0 top-0 z-10 whitespace-nowrap rounded-md border border-acc/60 bg-ink/90 px-2 py-1 text-sm text-slate-100 shadow-lg" style={{ opacity: 0 }} />
       <Canvas key={key} shadows camera={{ position: [0.3, -0.36, 0.22], up: [0, 0, 1], fov: 38 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[1, -1, 2]} intensity={1.4} castShadow />
         <directionalLight position={[-1, 1, 1]} intensity={0.4} />
         <Grid args={[2, 2]} cellSize={0.05} sectionSize={0.25} rotation={[Math.PI / 2, 0, 0]} cellColor="#2a3142" sectionColor="#3b82f6" fadeDistance={2} position={[0, 0, -((body?.wheel_diameter_mm ?? 60) / 2000)]} />
         <ContactShadows position={[0, 0, -((body?.wheel_diameter_mm ?? 60) / 2000) + 0.001]} rotation={[Math.PI / 2, 0, 0]} opacity={0.5} scale={1} blur={2} />
-        {ready && <Player pieces={pieces} playing={playing} onDone={() => { setPlaying(false); onDone?.(); }} />}
+        {ready && <Player pieces={pieces} playing={playing} onDone={() => { setPlaying(false); onDone?.(); }} labelEl={labelEl} mode={mode} />}
         <OrbitControls target={[0.03, 0, 0.03]} enablePan={false} minDistance={0.2} maxDistance={1.5} />
       </Canvas>
     </div>

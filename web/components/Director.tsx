@@ -97,7 +97,7 @@ function StepBar({ stages, idx, setIdx, auto, setAuto, prev, next, run }: { stag
         {stages.map((st, i) => (
           <button key={i} onClick={() => setIdx(i)}
             className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${i === idx ? "bg-acc text-white" : i < idx ? "bg-line text-slate-200" : "border border-line text-slate-500"}`}>
-            {label(st)}{st.kind === "sim" && (st.report.passed ? " ✓" : " ✕")}
+            {i < idx && <span className="mr-1 text-ok">✓</span>}{label(st)}{st.kind === "sim" && (st.report.passed ? <span className="ml-1 text-ok">pass</span> : <span className="ml-1 text-bad">fail</span>)}
           </button>
         ))}
         {live && <span className="ml-2 flex items-center gap-2 text-xs text-warn"><span className="h-2 w-2 animate-pulse rounded-full bg-warn" />agents working…</span>}
@@ -136,7 +136,12 @@ function StageView({ stage, run, onAssembled }: { stage: Stage; run: RunState; o
         </div>
       );
     case "sim":
-      return <Viewer3D key={stage.report.iteration} report={stage.report} spec={run.spec ?? null} body={run.body ?? null} parts={run.parts} board={run.board} className={H} />;
+      return (
+        <div className="relative">
+          <Viewer3D key={stage.report.iteration} report={stage.report} spec={run.spec ?? null} body={run.body ?? null} parts={run.parts} board={run.board} className={H} />
+          {stage.report.passed && <Confetti />}
+        </div>
+      );
     case "verdict":
       return (
         <div className="panel flex h-[68vh] min-h-[480px] flex-col items-center justify-center gap-6 px-10 text-center">
@@ -148,6 +153,19 @@ function StageView({ stage, run, onAssembled }: { stage: Stage; run: RunState; o
       );
     case "done": return <DoneStage run={run} />;
   }
+}
+
+const CONFETTI = Array.from({ length: 60 }, (_, i) => ({ left: (i * 37) % 100, delay: (i % 12) * 0.12, dur: 2.4 + (i % 5) * 0.3, color: ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#e5e7eb"][i % 5], rot: (i * 53) % 360 }));
+
+function Confetti() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+      {CONFETTI.map((c, i) => (
+        <span key={i} className="absolute top-[-10px] block h-2.5 w-1.5 animate-[confetti_linear_forwards]"
+          style={{ left: `${c.left}%`, background: c.color, animationDuration: `${c.dur}s`, animationDelay: `${c.delay}s`, transform: `rotate(${c.rot}deg)` }} />
+      ))}
+    </div>
+  );
 }
 
 function PlanStage({ run }: { run: RunState }) {

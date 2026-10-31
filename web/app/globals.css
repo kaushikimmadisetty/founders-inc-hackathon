@@ -8,3 +8,5 @@ body { @apply bg-ink text-slate-100 antialiased; }
 .pill { @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold uppercase tracking-wide; }
 
 @keyframes fadein { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+
+@keyframes confetti { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(80vh) rotate(720deg); opacity: 0; } }
