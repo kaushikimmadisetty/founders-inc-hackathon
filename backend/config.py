@@ -60,6 +60,8 @@ SIM_SEED = int(os.getenv("SIM_SEED", "7"))
 # Demo mode: force attempt 1 of fetch_under_obstacle to be too tall so the
 # fail -> fix -> pass loop is visible. Disable with DEMO_SCRIPTED_FAIL=0.
 DEMO_SCRIPTED_FAIL = os.getenv("DEMO_SCRIPTED_FAIL", "1") == "1"
+# Seed three example runs on an empty backend so the explore gallery is never bare.
+DEMO_SEED_RUNS = os.getenv("DEMO_SEED_RUNS", "1") == "1"
 
 
 def artifact_url(rel: str) -> str:

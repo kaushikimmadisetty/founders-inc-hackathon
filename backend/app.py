@@ -20,11 +20,27 @@ app.include_router(__import__("routers.assets", fromlist=["router"]).router)
 app.include_router(__import__("routers.gallery", fromlist=["router"]).router)
 
 
+SEED_PROMPTS = [
+    "a robot that fetches my keys from under the couch",
+    "a little rover that patrols my apartment at night",
+    "a warehouse bot for tight aisles",
+]
+
+
 @app.on_event("startup")
 async def _restore():
     restore_runs()
     from routers.gallery import start_warming
     start_warming()
+    # Fresh deploy (ephemeral disk): seed the explore gallery with real example runs, staggered.
+    if config.DEMO_SEED_RUNS and not RUNS:
+        import asyncio
+
+        async def seed():
+            for i, prompt in enumerate(SEED_PROMPTS):
+                await asyncio.sleep(2 + i * 20)
+                start_run(prompt, "web")
+        asyncio.get_event_loop().create_task(seed())
 
 
 @app.get("/runs")
