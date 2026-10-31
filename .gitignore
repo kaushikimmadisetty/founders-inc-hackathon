@@ -11,3 +11,4 @@ backend/storage/
 web/.next/
 web/convex/_generated/
 *.log
+web/tsconfig.tsbuildinfo
