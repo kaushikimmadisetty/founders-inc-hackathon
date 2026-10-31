@@ -37,8 +37,16 @@ class Run:
         log.info("[%s][it%d] %s/%s: %s", self.s.run_id[:8], self.s.iteration, agent, kind, message)
         await convex.event(self.s.run_id, agent, kind, message, payload, self.s.iteration)
 
+    def persist(self):
+        try:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            (self.dir / "state.json").write_text(self.s.model_dump_json())
+        except Exception as e:
+            log.warning("persist failed: %s", e)
+
     async def status(self, st: str):
         self.s.status = st
+        self.persist()
         await convex.upsert_run(runId=self.s.run_id, prompt=self.s.prompt, source=self.s.source, status=st,
                                 iteration=self.s.iteration, specJson=self.s.spec.model_dump_json() if self.s.spec else None,
                                 createdAt=int(time.time() * 1000))
@@ -128,6 +136,7 @@ class Run:
                                                 "trajectoryUrl": rep.trajectory_url})
         await self.ev("sim", "done" if rep.passed else "error",
                       "PASSED" if rep.passed else f"FAILED: {rep.failure_detail}", rep.model_dump())
+        self.persist()
         return rep
 
     # ---- main loop ------------------------------------------------------
@@ -202,6 +211,23 @@ class Run:
             self.s.error = str(e)
             await self.status("failed")
             await self.ev("sim", "error", f"Run crashed: {e}")
+
+
+def load_run(run_id: str) -> RunState | None:
+    """Runs survive backend restarts via storage/<run_id>/state.json."""
+    if run_id in RUNS:
+        return RUNS[run_id]
+    p = config.STORAGE_DIR / run_id / "state.json"
+    if p.exists():
+        try:
+            st = RunState.model_validate_json(p.read_text())
+            if st.status not in ("passed", "failed"):
+                st.status, st.error = "failed", "backend restarted mid-run"
+            RUNS[run_id] = st
+            return st
+        except Exception as e:
+            log.warning("could not load %s: %s", run_id, e)
+    return None
 
 
 def start_run(prompt: str, source: str = "web", phone: str | None = None, parent_run_id: str | None = None) -> RunState:

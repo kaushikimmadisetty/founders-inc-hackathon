@@ -10,12 +10,13 @@ from fastapi.staticfiles import StaticFiles
 import config
 from adapters.photon_adapter import PhotonAdapter, get_messaging, parse_photon_webhook
 from models import RunCreate, RunState
-from orchestrator import RUNS, classify_inbound, start_run
+from orchestrator import RUNS, classify_inbound, load_run, start_run
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 app = FastAPI(title="RoboForge", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/artifacts", StaticFiles(directory=str(config.STORAGE_DIR)), name="artifacts")
+app.include_router(__import__("routers.assets", fromlist=["router"]).router)
 
 
 @app.get("/health")
@@ -28,16 +29,17 @@ async def health():
 async def create_run(body: RunCreate):
     if not body.prompt.strip():
         raise HTTPException(400, "empty prompt")
-    if body.parent_run_id and body.parent_run_id not in RUNS:
+    if body.parent_run_id and load_run(body.parent_run_id) is None:
         raise HTTPException(404, "unknown parent run")
     return start_run(body.prompt.strip(), body.source, body.phone, body.parent_run_id)
 
 
 @app.get("/runs/{run_id}", response_model=RunState)
 async def get_run(run_id: str):
-    if run_id not in RUNS:
+    st = load_run(run_id)
+    if st is None:
         raise HTTPException(404, "unknown run")
-    return RUNS[run_id]
+    return st
 
 
 _seen_messages: set[str] = set()
