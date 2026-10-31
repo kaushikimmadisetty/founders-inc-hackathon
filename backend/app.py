@@ -17,11 +17,14 @@ app = FastAPI(title="RoboForge", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/artifacts", StaticFiles(directory=str(config.STORAGE_DIR)), name="artifacts")
 app.include_router(__import__("routers.assets", fromlist=["router"]).router)
+app.include_router(__import__("routers.gallery", fromlist=["router"]).router)
 
 
 @app.on_event("startup")
 async def _restore():
     restore_runs()
+    from routers.gallery import start_warming
+    start_warming()
 
 
 @app.get("/runs")
