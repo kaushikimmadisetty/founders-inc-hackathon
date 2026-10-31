@@ -43,12 +43,13 @@ def _asset(folder: Path) -> PropAsset:
                      dims_m=meta["dims_m"], source_url=meta["source_url"], license=meta["license"])
 
 
-async def fetch_prop(query: str) -> PropAsset | None:
+async def fetch_prop(query: str, timeout_s: float = 20) -> PropAsset | None:
+    """timeout_s: 20 s during a run (never stall the sim); the gallery warm-up passes more."""
     if not query.strip():
         return None
     process = None
     try:
-        async with asyncio.timeout(20):
+        async with asyncio.timeout(timeout_s):
             process = await asyncio.create_subprocess_exec(
                 sys.executable, "-m", "sim.assets", query[:300], cwd=str(config.ROOT),
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)

@@ -51,7 +51,7 @@ async def warm_assets() -> None:
     for query, title, category, maker in CURATED:
         if query in _assets:
             continue
-        a = await fetch_prop(query)
+        a = await fetch_prop(query, timeout_s=90)  # big robot arms need more than the in-run 20 s cap
         if a:
             _assets[query] = {"type": "asset", "id": query.replace(" ", "-"), "title": title, "category": category, "maker": maker,
                               "license": a.license, "thumbnail_url": a.thumbnail_url, "glb_url": a.glb_url, "obj_url": a.obj_url,
