@@ -4,7 +4,7 @@ import { anyApi } from "convex/server"; // typed api arrives with `npx convex de
 import { AgentEvent, AgentName, RunState } from "@/lib/types";
 
 const DOT: Record<string, string> = { start: "bg-acc", progress: "bg-slate-400", done: "bg-ok", error: "bg-bad" };
-const CONVEX_ON = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+const CONVEX_ON = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL) && !/^REPLACE/i.test(process.env.NEXT_PUBLIC_CONVEX_URL ?? "");
 
 export function AgentLane(props: { name: AgentName; title: string; runId: string; run: RunState | null }) {
   return CONVEX_ON ? <LiveLane {...props} /> : <Lane {...props} events={[]} />;

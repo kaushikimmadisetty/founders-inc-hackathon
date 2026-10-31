@@ -74,6 +74,21 @@ def run(mjcf_xml: str, controller_src: str, robot_info: dict, iteration: int, ou
     cmd = {"wheel_vel": [0.0] * n}
     t = 0.0
 
+    tof_origin = np.zeros(3); tof_dir = np.zeros(3); tof_geomid = np.zeros(1, dtype=np.int32)
+    nose_x = L / 2 + 0.005 if (L := float(model.geom_size[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "chassis_geom")][0])) else 0.1
+
+    def tof_front() -> float:
+        """Real distance sensor: ray from the nose along +x of the chassis, ignoring the robot's own geoms. 2.0 m max."""
+        try:
+            xy, yaw, _ = pose()
+            z = 0.5 * float(model.geom_size[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "chassis_geom")][2]) + wheel_r
+            tof_origin[:] = (xy[0] + math.cos(yaw) * nose_x, xy[1] + math.sin(yaw) * nose_x, z)
+            tof_dir[:] = (math.cos(yaw), math.sin(yaw), 0.0)
+            d = mujoco.mj_ray(model, data, tof_origin, tof_dir, None, 1, model.body_rootid[chassis_id], tof_geomid)
+            return float(min(d, 2.0)) if d >= 0 else 2.0
+        except Exception:
+            return 2.0
+
     def pose():
         if is_mecanum:
             qx = data.joint("base_x").qpos[0]; qy = data.joint("base_y").qpos[0]; yaw = data.joint("base_yaw").qpos[0]
@@ -109,7 +124,7 @@ def run(mjcf_xml: str, controller_src: str, robot_info: dict, iteration: int, ou
             c, s = math.cos(-yaw), math.sin(-yaw)
             rel = [c * d[0] - s * d[1], s * d[0] + c * d[1]]
             obs = {"pose": [float(xy[0]), float(xy[1]), float(yaw)], "vel": [0, 0, 0], "target_rel": rel,
-                   "tof_front_m": 2.0, "imu": {"roll": roll, "pitch": pitch},
+                   "tof_front_m": tof_front(), "imu": {"roll": roll, "pitch": pitch},
                    "arm_q": [float(data.qpos[a]) for a in arm_q_adr], "waypoint_idx": wp_idx, "holding": holding}
             try:
                 cmd = ctrl.step(obs, t) or cmd

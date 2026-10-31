@@ -18,3 +18,4 @@ usd-core>=25.5
 trimesh>=4.6
 fast-simplification>=0.1.10
 scipy>=1.13
+openai>=1.50

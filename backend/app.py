@@ -34,7 +34,8 @@ async def list_runs(limit: int = 10):
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "anthropic": bool(config.ANTHROPIC_API_KEY), "convex": bool(config.CONVEX_URL),
+    return {"ok": True, "llm": config.LLM_PROVIDER or None, "agent_model": config.AGENT_MODEL or None, "planner_model": config.PLANNER_MODEL or None,
+            "anthropic": bool(config.ANTHROPIC_API_KEY), "openai": bool(config.OPENAI_API_KEY), "convex": bool(config.CONVEX_URL),
             "firecrawl": bool(config.FIRECRAWL_API_KEY), "photon": bool(config.PHOTON_API_KEY)}
 
 

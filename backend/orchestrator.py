@@ -12,7 +12,7 @@ from adapters import heypcb_adapter
 from adapters.convex_client import convex
 from adapters.photon_adapter import get_messaging
 from agents import board as board_agent, body as body_agent, brain as brain_agent, critic as critic_agent, parts as parts_agent, planner
-from models import RunState, SimReport
+from models import CriticVerdict, RunState, SimReport
 from sim import assembler, runner
 
 log = logging.getLogger("orchestrator")
@@ -145,10 +145,10 @@ class Run:
             await convex.artifact(self.s.run_id, "step", b.chassis_step_url, self.s.iteration, "Chassis STEP")
         await self.ev("body", "done", f"chassis {b.dims_mm[0]:.0f}x{b.dims_mm[1]:.0f}x{b.dims_mm[2]:.0f} mm, {b.chassis_mass_g:.0f} g", b.model_dump())
 
-    async def do_brain(self, robot_info: dict, revision=""):
-        await self.ev("brain", "start", "Writing controller" + (" (revising)" if revision else ""))
+    async def do_brain(self, robot_info: dict, revision="", force_fallback: bool = False):
+        await self.ev("brain", "start", "Loading proven library controller" if force_fallback else "Writing controller" + (" (revising)" if revision else ""))
         prev = self.s.brain.source if self.s.brain else None
-        self.s.brain = await brain_agent.write_controller(self.s.spec, robot_info, self.it_dir(), url_for, revision, prev)
+        self.s.brain = await brain_agent.write_controller(self.s.spec, robot_info, self.it_dir(), url_for, revision, prev, force_fallback=force_fallback)
         await convex.artifact(self.s.run_id, "controller", self.s.brain.controller_url or "", self.s.iteration, "controller.py")
         await self.ev("brain", "done", f"controller ({self.s.brain.origin}), static check: {self.s.brain.static_check_msg}",
                       {"source": self.s.brain.source[:1500], "origin": self.s.brain.origin})
@@ -220,6 +220,15 @@ class Run:
                 await self.status("revising")
                 await self.ev("critic", "start", "Diagnosing failure")
                 verdict = await critic_agent.critique(self.s, rep)
+                # An LLM-written controller that drove into an obstacle or ran out of time is the
+                # controller's fault, whatever the critic says: swap in the proven library controller.
+                llm_brain = self.s.brain is not None and self.s.brain.origin == "llm"
+                obstacle_hit = rep.failure_class == "geometry_collision" and "underside" not in rep.failure_detail and "leg" not in rep.failure_detail
+                if llm_brain and (verdict.route_to == "brain" or obstacle_hit or rep.failure_class in ("task_timeout", "missed_target")):
+                    verdict = CriticVerdict(failure_class=rep.failure_class, route_to="brain",
+                                            instruction="Replace the generated controller with the library controller for this template.",
+                                            summary=f"{verdict.summary.rstrip('.')}. Brain agent swapping to the proven library controller.")
+                    self._force_fallback_brain = True
                 self.s.critic_history.append(verdict)
                 await self.ev("critic", "done", verdict.summary, verdict.model_dump())
                 await self.text(f"Attempt {self.s.iteration} failed in sim: {verdict.summary}")
@@ -239,7 +248,10 @@ class Run:
                     await self.do_body()
                 elif verdict.route_to == "brain":
                     _, info = assembler.assemble(self.s.spec, self.s.parts, self.s.body)
-                    await self.do_brain(info, r)
+                    if getattr(self, "_force_fallback_brain", False):
+                        await self.do_brain(info, r, force_fallback=True)
+                    else:
+                        await self.do_brain(info, r)
                 if verdict.route_to != "brain":
                     _, info = assembler.assemble(self.s.spec, self.s.parts, self.s.body)
                     if self.s.brain.origin == "fallback":
