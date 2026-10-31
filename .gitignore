@@ -1,6 +1,13 @@
 .DS_Store
 .env
 .env.*
+!.env.example
+!.env.local.example
 node_modules/
 .venv/
 __pycache__/
+.pytest_cache/
+backend/storage/
+web/.next/
+web/convex/_generated/
+*.log

@@ -1,0 +1,7 @@
+    <!-- couch: underside at 100 mm, legs at corners, target under it -->
+    <geom name="couch_underside" type="box" size="0.45 0.4 0.02" pos="1.1 0 {{ 0.100 + 0.02 }}" material="obstacle_mat"/>
+    <geom name="couch_top" type="box" size="0.45 0.4 0.15" pos="1.1 0 0.29" rgba="0.4 0.3 0.25 1"/>
+    {% for sx, sy in [(1,1),(1,-1),(-1,1),(-1,-1)] %}
+    <geom name="couch_leg_{{ loop.index }}" type="box" size="0.03 0.03 0.05" pos="{{ 1.1 + sx*0.42 }} {{ sy*0.37 }} 0.05" material="obstacle_mat"/>
+    {% endfor %}
+    <geom name="target" type="box" size="0.02 0.02 0.01" pos="1.1 0 0.01" material="target_mat" contype="0" conaffinity="0"/>

@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "cwd": "web", "port": 3000 },
+    { "name": "backend", "runtimeExecutable": "backend/.venv/bin/uvicorn", "runtimeArgs": ["app:app", "--reload", "--port", "8000", "--app-dir", "backend"], "port": 8000 }
+  ]
+}

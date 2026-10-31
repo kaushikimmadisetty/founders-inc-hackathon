@@ -1,0 +1,27 @@
+{% extends "base.xml.j2" %}
+{% block robot %}
+    <body name="chassis" pos="{{ start[0] }} {{ start[1] }} {{ wheel_r + 0.005 }}">
+      <freejoint name="root"/>
+      <site name="imu_site" pos="0 0 0"/>
+      <geom name="chassis_geom" type="box" size="{{ L/2 }} {{ W/2 }} {{ H/2 }}" pos="0 0 {{ H/2 }}" mass="{{ chassis_mass }}" material="chassis_mat"/>
+      {% if cam_h > 0 %}<geom name="camera_geom" type="box" size="0.012 0.012 {{ cam_h/2 }}" pos="{{ L/2 - 0.015 }} 0 {{ H + cam_h/2 }}" mass="{{ cam_mass }}" rgba="0.1 0.1 0.1 1"/>{% endif %}
+      <geom name="battery_geom" type="box" size="{{ bat[0]/2 }} {{ bat[1]/2 }} {{ bat[2]/2 }}" pos="-0.02 0 {{ bat[2]/2 + 0.003 }}" mass="{{ bat_mass }}" rgba="0.9 0.6 0.1 1"/>
+      <geom name="caster" type="sphere" size="{{ caster_r }}" pos="{{ -L*0.4 }} 0 {{ -(wheel_r - caster_r) }}" mass="0.01" priority="1" condim="1" rgba="0.3 0.3 0.3 1"/>
+      <body name="wheel_l" pos="{{ L*0.25 }} {{ W/2 + 0.012 }} 0">
+        <joint name="wheel_l" type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size="{{ wheel_r }}" mass="{{ wheel_mass }}" rgba="0 0 0 0"/>
+        <geom type="cylinder" size="{{ wheel_r }} 0.01" quat="0.7071 0.7071 0 0" mass="0.001" material="wheel_mat" contype="0" conaffinity="0"/>
+      </body>
+      <body name="wheel_r" pos="{{ L*0.25 }} {{ -(W/2 + 0.012) }} 0">
+        <joint name="wheel_r" type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size="{{ wheel_r }}" mass="{{ wheel_mass }}" rgba="0 0 0 0"/>
+        <geom type="cylinder" size="{{ wheel_r }} 0.01" quat="0.7071 0.7071 0 0" mass="0.001" material="wheel_mat" contype="0" conaffinity="0"/>
+      </body>
+    </body>
+{% endblock %}
+{% block actuators %}
+  <actuator>
+    <motor name="m_l" joint="wheel_l" gear="1" ctrlrange="-{{ tau }} {{ tau }}" ctrllimited="true"/>
+    <motor name="m_r" joint="wheel_r" gear="1" ctrlrange="-{{ tau }} {{ tau }}" ctrllimited="true"/>
+  </actuator>
+{% endblock %}

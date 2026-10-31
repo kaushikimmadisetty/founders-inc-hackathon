@@ -1,0 +1,4 @@
+    <geom name="obs_1" type="box" size="0.1 0.1 0.15" pos="0.6 0.25 0.15" material="obstacle_mat"/>
+    <geom name="obs_2" type="box" size="0.1 0.1 0.15" pos="1.2 -0.25 0.15" material="obstacle_mat"/>
+    <geom name="obs_3" type="box" size="0.1 0.1 0.15" pos="1.8 0.3 0.15" material="obstacle_mat"/>
+    <geom name="target" type="cylinder" size="0.05 0.005" pos="2.0 0 0.005" material="target_mat" contype="0" conaffinity="0"/>

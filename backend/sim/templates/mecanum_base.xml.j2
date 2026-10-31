@@ -1,0 +1,33 @@
+{% extends "base.xml.j2" %}
+{# Mecanum simplification: planar base (slide x, slide y, hinge yaw) driven by
+   force-limited actuators. Wheel bodies are visual only. Controller wheel
+   velocities are mapped kinematically to base velocity in runner.py. #}
+{% block robot %}
+    <body name="base_x" pos="{{ start[0] }} {{ start[1] }} {{ wheel_r + 0.002 }}">
+      <joint name="base_x" type="slide" axis="1 0 0" damping="2"/>
+      <inertial pos="0 0 0" mass="0.001" diaginertia="1e-6 1e-6 1e-6"/>
+      <body name="base_y">
+        <joint name="base_y" type="slide" axis="0 1 0" damping="2"/>
+        <inertial pos="0 0 0" mass="0.001" diaginertia="1e-6 1e-6 1e-6"/>
+        <body name="chassis">
+          <joint name="base_yaw" type="hinge" axis="0 0 1" damping="0.5"/>
+          <site name="imu_site" pos="0 0 0"/>
+          <geom name="chassis_geom" type="box" size="{{ L/2 }} {{ W/2 }} {{ H/2 }}" pos="0 0 {{ H/2 }}" mass="{{ chassis_mass }}" material="chassis_mat"/>
+          {% if cam_h > 0 %}<geom name="camera_geom" type="box" size="0.012 0.012 {{ cam_h/2 }}" pos="{{ L/2 - 0.015 }} 0 {{ H + cam_h/2 }}" mass="{{ cam_mass }}" rgba="0.1 0.1 0.1 1"/>{% endif %}
+          <geom name="battery_geom" type="box" size="{{ bat[0]/2 }} {{ bat[1]/2 }} {{ bat[2]/2 }}" pos="-0.02 0 {{ bat[2]/2 + 0.003 }}" mass="{{ bat_mass }}" rgba="0.9 0.6 0.1 1"/>
+          {% for sx, sy in [(1,1),(1,-1),(-1,1),(-1,-1)] %}
+          <geom name="wheel_{{ loop.index }}" type="cylinder" size="{{ wheel_r }} 0.015" quat="0.7071 0.7071 0 0" pos="{{ sx*L*0.35 }} {{ sy*(W/2+0.017) }} 0" mass="{{ wheel_mass }}" material="wheel_mat" contype="0" conaffinity="0"/>
+          {% endfor %}
+          {% block arm %}{% endblock %}
+        </body>
+      </body>
+    </body>
+{% endblock %}
+{% block actuators %}
+  <actuator>
+    <motor name="f_x" joint="base_x" gear="1" ctrlrange="-{{ f_max }} {{ f_max }}" ctrllimited="true"/>
+    <motor name="f_y" joint="base_y" gear="1" ctrlrange="-{{ f_max }} {{ f_max }}" ctrllimited="true"/>
+    <motor name="t_yaw" joint="base_yaw" gear="1" ctrlrange="-{{ t_max }} {{ t_max }}" ctrllimited="true"/>
+    {% block arm_actuators %}{% endblock %}
+  </actuator>
+{% endblock %}
