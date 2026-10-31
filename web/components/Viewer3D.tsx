@@ -8,7 +8,7 @@ import { RobotModel, buildPieces } from "./Robot3D";
 
 /** Replays trajectory.json. Geometry mirrors the MJCF primitives (box chassis,
  *  cylinder wheels), scene drawn from the task id. No meshes needed. */
-export function Viewer3D({ report, spec, body, parts, board }: { report: SimReport; spec: RobotSpec | null; body: BodyArtifact | null; parts?: PartsSelection | null; board?: BoardArtifact | null }) {
+export function Viewer3D({ report, spec, body, parts, board, className }: { report: SimReport; spec: RobotSpec | null; body: BodyArtifact | null; parts?: PartsSelection | null; board?: BoardArtifact | null; className?: string }) {
   const pieces = useMemo(() => buildPieces(spec, parts ?? null, body, board ?? null), [spec, parts, body, board]);
   const followRef = useRef(new THREE.Vector3(0, 0, 0));
   const [traj, setTraj] = useState<Trajectory | null>(null);
@@ -21,7 +21,7 @@ export function Viewer3D({ report, spec, body, parts, board }: { report: SimRepo
   const taskId = spec?.task.id ?? "drive_loop";
 
   return (
-    <div className="panel relative h-[520px] overflow-hidden">
+    <div className={`panel relative overflow-hidden ${className ?? "h-[520px]"}`}>
       <div className={`absolute left-3 top-3 z-10 rounded-lg px-3 py-1 text-sm font-bold ${report.passed ? "bg-ok text-black" : "bg-bad text-white"}`}>
         Attempt {report.iteration}: {report.passed ? "passed" : report.failure_class.replace(/_/g, " ")}
       </div>

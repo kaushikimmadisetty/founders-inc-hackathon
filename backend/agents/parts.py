@@ -7,6 +7,7 @@ from pathlib import Path
 
 import config
 import llm
+from adapters import firecrawl_client as fc
 from adapters.firecrawl_client import search_parts
 from models import Part, PartsSelection, RobotSpec
 
@@ -68,6 +69,39 @@ def catalog_pick(spec: RobotSpec, revision: str = "", exclude_skus: set[str] | N
         c = dict(choice[role]); c.pop("sku_", None)
         parts.append(Part(role=role, qty=qty, source="catalog", **{k: v for k, v in c.items() if k != "role"}))
     return PartsSelection(parts=parts).recompute()
+
+
+async def verify_live(sel: PartsSelection, on_part=None, budget_s: float | None = None) -> PartsSelection:
+    """Firecrawl every part's real store page: live price + stock. Catalog values
+    stay when the scrape fails or the price looks wrong. Bounded by one budget."""
+    if not fc.enabled():
+        log.info("FIRECRAWL_API_KEY not set, prices are catalog values")
+        return sel
+    budget_s = budget_s or config.FIRECRAWL_TIMEOUT_S
+    sem = asyncio.Semaphore(6)
+
+    async def one(p: Part):
+        async with sem:
+            live = await fc.scrape_product(p.url, timeout_s=budget_s - 1)
+        if not live:
+            return
+        base = p.catalog_price_usd or p.unit_price_usd
+        plausible = 0.3 * base <= live["price_usd"] <= 4 * base
+        p.catalog_price_usd = base
+        if plausible:
+            p.unit_price_usd = round(live["price_usd"], 2)
+        p.in_stock = live.get("in_stock")
+        p.vendor = live.get("vendor")
+        p.url = live.get("url") or p.url
+        p.source = "firecrawl"
+        if on_part:
+            await on_part(p, live, plausible)
+
+    try:
+        await asyncio.wait_for(asyncio.gather(*(one(p) for p in sel.parts if p.url), return_exceptions=True), timeout=budget_s)
+    except asyncio.TimeoutError:
+        log.warning("live price check hit the %.0fs budget; remaining parts keep catalog prices", budget_s)
+    return sel.recompute()
 
 
 async def select_parts(spec: RobotSpec, revision: str = "", previous: PartsSelection | None = None) -> PartsSelection:

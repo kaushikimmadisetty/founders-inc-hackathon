@@ -98,8 +98,11 @@ class Part(BaseModel):
     dims_mm: tuple[float, float, float] = (0, 0, 0)
     unit_price_usd: float
     url: str = ""
-    source: Literal["firecrawl", "catalog"] = "catalog"
+    source: Literal["firecrawl", "catalog"] = "catalog"   # firecrawl = price verified live on the store page
     sku: Optional[str] = None
+    in_stock: Optional[bool] = None
+    vendor: Optional[str] = None
+    catalog_price_usd: Optional[float] = None               # what we assumed before the live check
 
 
 class PartsSelection(BaseModel):

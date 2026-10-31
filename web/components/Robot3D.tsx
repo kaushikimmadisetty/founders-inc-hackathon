@@ -111,10 +111,12 @@ export function buildPieces(spec: RobotSpec | null, parts: PartsSelection | null
 
 const ease = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
 
+export function pieceStart(p: Piece, total: number) { return (p.order / Math.max(total, 1)) * 0.8; }
+
 function PieceMesh({ p, progress, total, showLabel }: { p: Piece; progress: number; total: number; showLabel: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
-  // stagger: piece k assembles over [k/total, k/total + 0.35]
-  const start = (p.order / Math.max(total, 1)) * 0.8;
+  // stagger: piece k assembles over [start, start + 0.3]
+  const start = pieceStart(p, total);
   const t = ease((progress - start) / 0.3);
   const pos = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
@@ -130,13 +132,6 @@ function PieceMesh({ p, progress, total, showLabel }: { p: Piece; progress: numb
     <mesh ref={ref} rotation={rot as [number, number, number]} castShadow receiveShadow>
       {geom}
       <meshStandardMaterial color={p.color} transparent opacity={1} roughness={0.55} metalness={p.color.startsWith("#c") || p.color.startsWith("#d") ? 0.6 : 0.1} emissive={p.emissive ?? "#000"} emissiveIntensity={p.emissive ? 0.8 : 0} />
-      {showLabel && p.label && t > 0.05 && t < 0.98 && (
-        <Html center distanceFactor={1.4} style={{ pointerEvents: "none", whiteSpace: "nowrap" }}>
-          <div className="rounded-md border border-line bg-ink/90 px-2 py-1 text-[11px] text-slate-100 shadow">
-            {p.label}{p.price !== undefined && <span className="ml-1 text-slate-400">${p.price.toFixed(2)}</span>}
-          </div>
-        </Html>
-      )}
     </mesh>
   );
 }
@@ -144,9 +139,40 @@ function PieceMesh({ p, progress, total, showLabel }: { p: Piece; progress: numb
 /** Static or animated robot; drop inside a Canvas. progress 1 = fully assembled. */
 export function RobotModel({ pieces, progress = 1, labels = false }: { pieces: Piece[]; progress?: number; labels?: boolean }) {
   const total = Math.max(...pieces.map((p) => p.order), 1) + 1;
+  // label only the labelled piece currently flying in (latest started, not yet settled)
+  let active: string | null = null;
+  if (labels && progress < 1) {
+    let best = -1;
+    for (const p of pieces) {
+      const st = pieceStart(p, total);
+      if (p.label && st <= progress && st > best) { best = st; active = p.id; }
+    }
+  }
+  const activePiece = pieces.find((p) => p.id === active) ?? null;
   return (
     <group>
-      {pieces.map((p) => <PieceMesh key={p.id} p={p} progress={progress} total={total} showLabel={labels} />)}
+      {pieces.map((p) => <PieceMesh key={p.id} p={p} progress={progress} total={total} showLabel={false} />)}
+      {labels && <ActiveLabel piece={activePiece} progress={progress} total={total} />}
+    </group>
+  );
+}
+
+/** One always-mounted label that follows whichever part is flying in. Avoids
+ *  mounting/unmounting drei Html per frame, which races React's commit. */
+function ActiveLabel({ piece, progress, total }: { piece: Piece | null; progress: number; total: number }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!ref.current || !piece) return;
+    const t = ease((progress - pieceStart(piece, total)) / 0.3);
+    ref.current.position.set(piece.pos[0] + piece.from[0] * (1 - t), piece.pos[1] + piece.from[1] * (1 - t), piece.pos[2] + piece.from[2] * (1 - t) + 0.045);
+  });
+  return (
+    <group ref={ref}>
+      <Html center zIndexRange={[10, 0]} style={{ pointerEvents: "none", whiteSpace: "nowrap", opacity: piece ? 1 : 0, transition: "opacity .15s" }}>
+        <div className="rounded-md border border-acc/60 bg-ink/90 px-2 py-1 text-xs text-slate-100 shadow-lg">
+          {piece?.label}{piece?.price !== undefined && <span className="ml-1 text-slate-400">${piece.price.toFixed(2)}</span>}
+        </div>
+      </Html>
     </group>
   );
 }
@@ -170,27 +196,27 @@ function Player({ pieces, playing, onDone }: { pieces: Piece[]; playing: boolean
 }
 
 /** Panel: exploded parts fly in and assemble into the full robot. */
-export function AssemblyViewer({ spec, parts, body, board, status }: { spec: RobotSpec | null; parts: PartsSelection | null; body: BodyArtifact | null; board: BoardArtifact | null; status?: string }) {
+export function AssemblyViewer({ spec, parts, body, board, status, className, onDone }: { spec: RobotSpec | null; parts: PartsSelection | null; body: BodyArtifact | null; board: BoardArtifact | null; status?: string; className?: string; onDone?: () => void }) {
   const pieces = useMemo(() => buildPieces(spec, parts, body, board), [spec, parts, body, board]);
   const [key, setKey] = useState(0);
   const [playing, setPlaying] = useState(true);
   const ready = Boolean(parts && body);
   const named = pieces.filter((p) => p.label).length;
   return (
-    <div className="panel relative h-[520px] overflow-hidden">
+    <div className={`panel relative overflow-hidden ${className ?? "h-[520px]"}`}>
       <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
         <span className="rounded-lg bg-acc px-3 py-1 text-sm font-bold text-white">Assembly</span>
         <span className="text-xs text-slate-300">{ready ? `${named} components → ${spec?.template.replace(/_/g, " ")}` : (status === "planning" ? "planning…" : "waiting for parts and body…")}</span>
       </div>
       <button onClick={() => { setKey((k) => k + 1); setPlaying(true); }} className="absolute right-3 top-3 z-10 rounded-lg border border-line bg-panel/80 px-3 py-1 text-xs hover:border-acc">Replay</button>
-      <Canvas key={key} shadows camera={{ position: [0.45, -0.55, 0.38], up: [0, 0, 1], fov: 38 }}>
+      <Canvas key={key} shadows camera={{ position: [0.3, -0.36, 0.22], up: [0, 0, 1], fov: 38 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[1, -1, 2]} intensity={1.4} castShadow />
         <directionalLight position={[-1, 1, 1]} intensity={0.4} />
         <Grid args={[2, 2]} cellSize={0.05} sectionSize={0.25} rotation={[Math.PI / 2, 0, 0]} cellColor="#2a3142" sectionColor="#3b82f6" fadeDistance={2} position={[0, 0, -((body?.wheel_diameter_mm ?? 60) / 2000)]} />
         <ContactShadows position={[0, 0, -((body?.wheel_diameter_mm ?? 60) / 2000) + 0.001]} rotation={[Math.PI / 2, 0, 0]} opacity={0.5} scale={1} blur={2} />
-        {ready && <Player pieces={pieces} playing={playing} onDone={() => setPlaying(false)} />}
-        <OrbitControls target={[0.02, 0, 0.03]} enablePan={false} minDistance={0.25} maxDistance={1.5} />
+        {ready && <Player pieces={pieces} playing={playing} onDone={() => { setPlaying(false); onDone?.(); }} />}
+        <OrbitControls target={[0.03, 0, 0.03]} enablePan={false} minDistance={0.2} maxDistance={1.5} />
       </Canvas>
     </div>
   );

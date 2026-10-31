@@ -29,7 +29,7 @@ export function BuildPack({ run }: { run: RunState | null }) {
           <tbody>
             {bom.map((p) => (
               <tr key={p.role + p.name} className="border-t border-line">
-                <td className="py-1.5"><a href={p.url} target="_blank" rel="noreferrer" className="hover:text-acc">{p.name}</a><span className="ml-1 text-xs text-slate-500">{p.role}</span></td>
+                <td className="py-1.5"><a href={p.url} target="_blank" rel="noreferrer" className="hover:text-acc">{p.name}</a><span className="ml-1 text-xs text-slate-500">{p.role}</span>{p.source === "firecrawl" && <span className={`ml-1 text-[10px] ${p.in_stock === false ? "text-bad" : "text-ok"}`}>{p.in_stock === false ? "out of stock" : `live · ${p.vendor ?? ""}`}</span>}</td>
                 <td>{p.qty}</td>
                 <td className="text-right">${(p.unit_price_usd * p.qty).toFixed(2)}</td>
               </tr>

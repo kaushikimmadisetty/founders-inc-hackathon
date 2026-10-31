@@ -83,7 +83,19 @@ class Run:
         self.s.parts = await parts_agent.select_parts(self.s.spec, revision, self.s.parts)
         for p in self.s.parts.parts:
             await self.ev("parts", "progress", f"{p.qty}x {p.name} ${p.unit_price_usd:.2f}", p.model_dump())
-        await self.ev("parts", "done", f"{len(self.s.parts.parts)} parts, ${self.s.parts.total_usd:.2f}, {self.s.parts.total_mass_g:.0f} g", self.s.parts.model_dump())
+        self.persist()
+        await self.ev("parts", "progress", "Checking live prices and stock on the vendors' pages (Firecrawl)")
+
+        async def on_live(p, live, plausible):
+            msg = f"{p.name}: ${live['price_usd']:.2f} at {live.get('vendor')}" + ("" if plausible else " (ignored, implausible)")
+            if live.get("in_stock") is False:
+                msg += " — OUT OF STOCK"
+            await self.ev("parts", "progress", msg, {"role": p.role, "live": live})
+
+        self.s.parts = await parts_agent.verify_live(self.s.parts, on_live)
+        live_n = sum(1 for p in self.s.parts.parts if p.source == "firecrawl")
+        await self.ev("parts", "done", f"{len(self.s.parts.parts)} parts, ${self.s.parts.total_usd:.2f}, {self.s.parts.total_mass_g:.0f} g"
+                      + (f", {live_n} prices verified live" if live_n else ", catalog prices"), self.s.parts.model_dump())
 
     async def do_board(self, revision=""):
         await self.ev("board", "start", "Designing carrier PCB")

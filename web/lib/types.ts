@@ -9,6 +9,7 @@ export interface Part {
   role: string; qty: number; name: string; mass_g: number;
   stall_torque_nm?: number | null; rated_rpm?: number | null; stall_current_a?: number | null;
   dims_mm: [number, number, number]; unit_price_usd: number; url: string; source: "firecrawl" | "catalog";
+  in_stock?: boolean | null; vendor?: string | null; catalog_price_usd?: number | null;
 }
 export interface PartsSelection { parts: Part[]; total_usd: number; total_mass_g: number }
 export interface BodyArtifact {
