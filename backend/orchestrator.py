@@ -177,6 +177,47 @@ class Run:
         self.persist()
         return rep
 
+    # ---- in-place tweak (Etch-style "describe a change") ------------------
+    async def tweak(self, text: str):
+        """Apply a change request to THIS run: new iteration, parts/board/body refit, re-sim.
+        Fast path: heuristic spec edit + catalog/LLM parts, library controller. The page stays put."""
+        rec = {"text": text, "started_ms": int(time.time() * 1000), "done_ms": None, "steps": [], "passed": None}
+        self.s.tweaks.append(rec)
+        self.s.busy = True
+        t0 = time.time()
+
+        def step(name, note=""):
+            rec["steps"].append({"name": name, "ms": int((time.time() - t0) * 1000), "note": note})
+            self.persist()
+
+        try:
+            self.s.iteration += 1
+            self.s.modification = text
+            await self.status("building")
+            await self.ev("planner", "start", f"Applying change: {text}")
+            self.s.spec = planner.apply_modification(self.s.spec, text)
+            step("plan", self.s.spec.rationale)
+            await self.ev("planner", "done", self.s.spec.rationale, self.s.spec.model_dump())
+            await self.do_parts(text)
+            step("parts", f"{len(self.s.parts.parts)} parts, ${self.s.parts.total_usd:.2f}")
+            await asyncio.gather(self.do_board(text), self.do_body(text))
+            step("body", f"chassis {self.s.body.dims_mm[0]:.0f}x{self.s.body.dims_mm[1]:.0f}x{self.s.body.dims_mm[2]:.0f} mm")
+            _, info = assembler.assemble(self.s.spec, self.s.parts, self.s.body)
+            await self.do_brain(info, force_fallback=True)
+            rep = await self.do_sim()
+            step("sim", "passed" if rep.passed else rep.failure_detail)
+            rec["passed"] = rep.passed
+            await self.status("passed" if rep.passed else "failed")
+        except Exception as e:
+            log.exception("tweak failed")
+            self.s.error = str(e)
+            step("error", str(e))
+            await self.status("failed")
+        finally:
+            rec["done_ms"] = int(time.time() * 1000)
+            self.s.busy = False
+            self.persist()
+
     # ---- main loop ------------------------------------------------------
     async def execute(self):
         try:
@@ -304,6 +345,15 @@ def start_run(prompt: str, source: str = "web", phone: str | None = None, parent
 
 
 NEW_IDEA_MARKERS = ("robot", "rover", "bot ", "build me", "make me", "i want a", "new:", "design a", "something that")
+
+
+def start_tweak(run_id: str, text: str) -> RunState | None:
+    st = load_run(run_id)
+    if st is None or st.busy or st.spec is None or st.parts is None or st.body is None:
+        return None
+    st.busy = True
+    asyncio.create_task(Run(st).tweak(text))
+    return st
 
 
 def classify_inbound(phone: str, text: str) -> str | None:
