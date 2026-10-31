@@ -13,3 +13,8 @@ pytest>=8
 pytest-asyncio>=0.23
 # optional, heavy. Install separately if needed:
 # cadquery>=2.4
+
+usd-core>=25.5
+trimesh>=4.6
+fast-simplification>=0.1.10
+scipy>=1.13
