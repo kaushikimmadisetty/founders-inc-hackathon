@@ -35,12 +35,18 @@ export default function Gallery() {
   const phone = process.env.NEXT_PUBLIC_PHOTON_NUMBER ?? "(number coming)";
   const robots = data?.robots ?? [];
   const fallback: GalleryItem[] = examples.map((title, i) => ({ id: `example-${i}`, type: "robot", title, category: ["mecanum arm", "2-wheel rover", "Warehouse"][i], maker: "RoboForge", license: "Example concept" }));
-  const items = [...(data && !robots.length ? fallback : robots), ...(data?.assets ?? [])];
-  const categories = { ...data?.categories };
-  if (data && !robots.length) fallback.forEach(item => { categories[item.category] = (categories[item.category] ?? 0) + 1; });
+  const seen = new Set<string>();
+  const items = [...(data && !robots.length ? fallback : robots), ...(data?.assets ?? [])].filter(item => {
+    // Different search queries can resolve to the same physical asset.
+    const key = `${item.type}:${item.type === "asset" ? item.glb_url || item.id : item.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+  const categories: Record<string, number> = {};
+  items.forEach(item => { categories[item.category] = (categories[item.category] ?? 0) + 1; });
   const visible = items.filter(item => (category === "All" || item.category === category) && (!passed || item.passed) && `${item.title} ${item.maker} ${item.category}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => order === "Recent" ? (b.created_ms ?? 0) - (a.created_ms ?? 0) : (b.popularity ?? b.stars ?? Number(b.passed)) - (a.popularity ?? a.stars ?? Number(a.passed)));
   return <main className="explore-page"><ExploreHeader /><div className="explore-content">
-    <section className="explore-hero"><h1>Real robots, ready to <em>poke at</em>.</h1><p>Robots designed from real parts, tested in physics, rendered in 3D. Open one, tap any part and see what it does.</p><div className="explore-cta"><Link href="/build" className="explore-primary"><span>＋</span> Build a robot</Link><span><b>{data?.counts.robots ?? 0}</b> robots · <b>{data?.counts.assets ?? 0}</b> assets from <b>{data?.counts.makers ?? 0}</b> makers</span></div></section>
+    <section className="explore-hero"><h1>Real robots, ready to <em>poke at</em>.</h1><p>Robots designed from real parts, tested in physics, rendered in 3D. Open one, tap any part and see what it does.</p><div className="explore-cta"><Link href="/build" className="explore-primary"><span>＋</span> Build a robot</Link><span><b>{data?.counts.robots ?? 0}</b> robots · <b>{items.filter(item => item.type === "asset").length}</b> assets from <b>{data?.counts.makers ?? 0}</b> makers</span></div></section>
     <nav className="category-chips" aria-label="Categories">{[["All", items.length], ...Object.entries(categories)].map(([name, count]) => <button key={name} aria-pressed={category === name} onClick={() => setCategory(String(name))} className={category === name ? "active" : ""}>{name} <span>{count}</span></button>)}</nav>
     <p className="gallery-count"><b>{visible.length}</b> items · {category === "All" ? "all categories" : category}</p>
     <div className="gallery-filters"><button className="search-round" aria-label="Search gallery" aria-expanded={search} onClick={() => setSearch(v => !v)}>⌕</button>{search && <input autoFocus aria-label="Search robots and assets" placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} />}<button className="passed-toggle" role="switch" aria-checked={passed} onClick={() => setPassed(v => !v)}><span className={passed ? "on" : ""}><i /></span>Passed sim only</button><div className="segment">{["Popular", "Recent"].map(value => <button key={value} className={order === value ? "active" : ""} aria-pressed={order === value} onClick={() => setOrder(value)}>{value}</button>)}</div></div>
