@@ -1,5 +1,7 @@
 # RoboForge — text to robot
 
+▶ **[Watch the 30-second explainer](media/roboforge-explainer.mp4)**
+
 Text a robot idea from your phone. Get back a robot designed from real parts, tested in physics simulation, ready to manufacture (BOM, PCB, printable chassis), plus a GIF of it doing the job.
 
 Thesis: robotics is bottlenecked by evaluation, not model scale. Every generated robot must pass a MuJoCo sim gate before it ships. Failures route back to the agent responsible, which revises the design, and the loop reruns (max 3 attempts). The visible fail → fix → pass loop is the demo.
