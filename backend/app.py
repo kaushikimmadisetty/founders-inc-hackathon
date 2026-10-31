@@ -10,13 +10,23 @@ from fastapi.staticfiles import StaticFiles
 import config
 from adapters.photon_adapter import PhotonAdapter, get_messaging, parse_photon_webhook
 from models import RunCreate, RunState
-from orchestrator import RUNS, classify_inbound, load_run, start_run
+from orchestrator import RUNS, classify_inbound, load_run, recent_runs, restore_runs, start_run
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 app = FastAPI(title="RoboForge", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/artifacts", StaticFiles(directory=str(config.STORAGE_DIR)), name="artifacts")
 app.include_router(__import__("routers.assets", fromlist=["router"]).router)
+
+
+@app.on_event("startup")
+async def _restore():
+    restore_runs()
+
+
+@app.get("/runs")
+async def list_runs(limit: int = 10):
+    return {"runs": recent_runs(min(max(limit, 1), 50))}
 
 
 @app.get("/health")

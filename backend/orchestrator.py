@@ -225,6 +225,13 @@ class Run:
             await self.ev("sim", "error", f"Run crashed: {e}")
 
 
+def recent_runs(limit: int = 10) -> list[dict]:
+    """Newest first. Used by the /live kiosk screen to jump to whatever just came in."""
+    items = sorted(RUNS.values(), key=lambda r: _created_ms.get(r.run_id, 0), reverse=True)[:limit]
+    return [{"run_id": r.run_id, "prompt": r.prompt, "status": r.status, "source": r.source, "iteration": r.iteration,
+             "created_ms": _created_ms.get(r.run_id, 0), "modification": r.modification} for r in items]
+
+
 def load_run(run_id: str) -> RunState | None:
     """Runs survive backend restarts via storage/<run_id>/state.json."""
     if run_id in RUNS:
@@ -278,6 +285,21 @@ def classify_inbound(phone: str, text: str) -> str | None:
 
 
 _created_ms: dict[str, float] = {}
+
+
+def restore_runs() -> None:
+    for p in sorted(config.STORAGE_DIR.glob("*/state.json")):
+        rid = p.parent.name
+        if rid in RUNS:
+            continue
+        try:
+            st = RunState.model_validate_json(p.read_text())
+            if st.status not in ("passed", "failed"):
+                st.status, st.error = "failed", "backend restarted mid-run"
+            RUNS[rid] = st
+            _created_ms[rid] = p.stat().st_mtime * 1000
+        except Exception as e:
+            log.warning("could not restore %s: %s", rid, e)
 
 
 async def run_sync(prompt: str) -> RunState:
