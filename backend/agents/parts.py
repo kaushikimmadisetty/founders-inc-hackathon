@@ -30,6 +30,51 @@ def required_roles(spec: RobotSpec) -> dict[str, int]:
     return roles
 
 
+REF_PREFIX = {"mcu": "U", "drive_motor": "M", "motor_driver": "D", "battery": "B", "regulator": "R", "imu": "IMU",
+              "camera": "CAM", "tof": "TOF", "servo": "S", "wheel": "W", "caster": "C", "gripper": "G"}
+
+
+def annotate(sel: PartsSelection, spec: RobotSpec) -> PartsSelection:
+    """Give every part a designator and a one-sentence job description for the inspector."""
+    n = spec.wheel_count
+    tmpl = spec.template
+    for p in sel.parts:
+        pre = REF_PREFIX.get(p.role, p.role[:3].upper())
+        p.ref = pre if p.qty == 1 else f"{pre}1-{pre}{p.qty}"
+        t = f" at {p.stall_torque_nm} N·m stall, {p.rated_rpm} rpm" if p.stall_torque_nm and p.rated_rpm else ""
+        if p.role == "drive_motor":
+            p.purpose = (f"Drives the {'left and right' if n == 2 else 'four mecanum'} wheels{t}. "
+                         f"{'Differential steering: speed difference turns the robot.' if n == 2 else 'Each wheel is driven independently so the base can strafe sideways.'}")
+        elif p.role == "wheel":
+            p.purpose = ("Mecanum wheel: angled rollers let the base move in any direction without turning." if "mecanum" in p.name.lower()
+                         else f"Drive wheel, Ø{p.dims_mm[0]:.0f} mm. Sets top speed together with the motor rpm.")
+        elif p.role == "caster":
+            p.purpose = "Free-rolling third contact point at the back so the two-wheel base stays level."
+        elif p.role == "mcu":
+            p.purpose = "The brain: runs controller.py, reads sensors, commands the motor drivers over PWM."
+        elif p.role == "motor_driver":
+            p.purpose = f"H-bridge that turns the MCU's logic signals into motor current (two channels each, {max(1, n // 2)} needed for {n} motors)."
+        elif p.role == "battery":
+            p.purpose = (f"{p.capacity_mah or '?'} mAh at {p.voltage_v or '?'} V powers everything; "
+                         f"sized for about {spec.constraints.target_runtime_min:.0f} min of driving.")
+        elif p.role == "regulator":
+            p.purpose = "Steps the battery voltage down to a clean 5 V rail for the MCU and sensors."
+        elif p.role == "imu":
+            p.purpose = "Measures tilt and rotation rate so the controller can hold heading and detect tipping."
+        elif p.role == "camera":
+            p.purpose = ("Low-profile camera for spotting the target under tight clearance." if "low profile" in p.name.lower()
+                         else "Forward camera for finding the target.")
+        elif p.role == "tof":
+            p.purpose = "Time-of-flight distance sensor on the nose: stops the robot before it hits an obstacle."
+        elif p.role == "servo":
+            p.purpose = f"Three servos form the arm's shoulder, elbow and wrist joints ({p.stall_torque_nm} N·m each, {spec.params.arm_reach_mm or 150:.0f} mm reach)."
+        elif p.role == "gripper":
+            p.purpose = "Servo-driven jaws at the end of the arm that close on the target."
+        else:
+            p.purpose = p.name
+    return sel
+
+
 def catalog_pick(spec: RobotSpec, revision: str = "", exclude_skus: set[str] | None = None) -> PartsSelection:
     """Deterministic catalog selection honouring constraints. The demo's attempt-1
     'tall camera' trap lives here: a low clearance task + camera picks the tall
@@ -68,7 +113,7 @@ def catalog_pick(spec: RobotSpec, revision: str = "", exclude_skus: set[str] | N
     for role, qty in required_roles(spec).items():
         c = dict(choice[role]); c.pop("sku_", None)
         parts.append(Part(role=role, qty=qty, source="catalog", **{k: v for k, v in c.items() if k != "role"}))
-    return PartsSelection(parts=parts).recompute()
+    return annotate(PartsSelection(parts=parts).recompute(), spec)
 
 
 async def verify_live(sel: PartsSelection, on_part=None, budget_s: float | None = None) -> PartsSelection:
@@ -125,7 +170,7 @@ async def select_parts(spec: RobotSpec, revision: str = "", previous: PartsSelec
             log.warning("LLM parts missing roles %s, filling from catalog", missing)
             sel.parts += [p for p in base.parts if p.role in missing]
             sel.recompute()
-        return sel
+        return annotate(sel, spec)
     except Exception as e:
         log.warning("parts LLM failed, catalog fallback: %s", e)
         return base

@@ -103,6 +103,8 @@ class Part(BaseModel):
     in_stock: Optional[bool] = None
     vendor: Optional[str] = None
     catalog_price_usd: Optional[float] = None               # what we assumed before the live check
+    ref: Optional[str] = None                               # short designator shown in 3D and the parts list: M1, W2, PCB…
+    purpose: Optional[str] = None                           # one plain sentence: what this part does in THIS robot
 
 
 class PartsSelection(BaseModel):
