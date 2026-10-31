@@ -193,13 +193,14 @@ def _build(query: str) -> PropAsset:
                 dims = mesh.extents.tolist()
                 if not np.isfinite(dims).all() or min(dims) <= 0:
                     raise ValueError("Invalid prop bounds")
-                if len(mesh.faces) > 45000:
-                    mesh = mesh.simplify_quadric_decimation(face_count=45000)
+                # Showpiece robots need detail; 200k faces keeps arms/grippers recognisable (was 45k, which turned them into blobs).
+                if len(mesh.faces) > 200_000:
+                    mesh = mesh.simplify_quadric_decimation(face_count=200_000)
                 mesh.export(work / "prop.obj")
                 mesh.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
                 mesh.export(work / "prop.glb")
-                if (work / "prop.glb").stat().st_size > 3_000_000:
-                    raise ValueError("Prop exceeds mobile mesh budget")
+                if (work / "prop.glb").stat().st_size > 14_000_000:
+                    raise ValueError("Prop exceeds mesh budget")
                 # Re-open the exported artifact before publishing the cache.
                 check = trimesh.load(work / "prop.glb", force="mesh")
                 if not len(check.faces):
