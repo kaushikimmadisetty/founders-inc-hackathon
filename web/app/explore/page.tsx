@@ -1,1 +1,3 @@
-export { default } from "@/components/Gallery";
+import { redirect } from "next/navigation";
+
+export default function Explore() { redirect("/dashboard"); }

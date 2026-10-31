@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BACKEND } from "@/lib/types";
+import { startRun } from "@/lib/runs";
 
 const Hero3D = dynamic(() => import("@/components/Hero3D"), { ssr: false });
 
@@ -24,12 +24,8 @@ export default function Home() {
   async function go() {
     if (busy || !prompt.trim()) return;
     setBusy(true); setErr(null);
-    try {
-      const r = await fetch(`${BACKEND}/runs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, source: "web" }) });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      router.push(`/run/${data.run_id}`);
-    } catch (e) { setErr(String(e)); setBusy(false); }
+    try { router.push(`/run/${await startRun(prompt)}`); }
+    catch (e) { setErr(String(e)); setBusy(false); }
   }
 
   return (

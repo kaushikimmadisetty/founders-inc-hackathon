@@ -5,14 +5,14 @@ import { mediaUrl, useGallery, type GalleryItem } from "@/lib/gallery";
 
 const examples = ["a robot that fetches my keys from under the couch", "a little rover that patrols my apartment", "a warehouse bot for tight aisles"];
 export function ExploreHeader() {
-  return <header className="explore-header"><Link href="/explore" className="explore-brand"><span className="logo-mark">R</span><strong className="font-serif">roboforge</strong><span>/</span><span>Explore</span></Link><Link className="explore-pill" href="/build">Build a robot</Link></header>;
+  return <header className="explore-header"><span className="explore-brand"><Link href="/" className="explore-brand"><span className="logo-mark">R</span><strong className="font-serif">roboforge</strong></Link><span>/</span><Link href="/dashboard">Dashboard</Link></span><Link className="explore-pill" href="/build">Build a robot</Link></header>;
 }
 export function HelpButton() {
   const [open, setOpen] = useState(false);
   return <div className="explore-help">{open && <div id="loop-help" role="status"><strong>Fail → fix → pass</strong><p>Describe a robot. We source real parts and test it in physics. When a simulation fails, the critic identifies the problem and routes a fix back to the design agents. Inspect each attempt, then download the passing build pack.</p></div>}<button aria-label="How RoboForge works" aria-expanded={open} aria-controls="loop-help" onClick={() => setOpen(v => !v)}>?</button></div>;
 }
 /** Draw once into a canvas: animated simulation GIFs never play on Explore. */
-function StillThumbnail({ url, title }: { url: string; title: string }) {
+export function StillThumbnail({ url, title }: { url: string; title: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -25,7 +25,7 @@ function StillThumbnail({ url, title }: { url: string; title: string }) {
   }, [url]);
   return failed ? <RobotIllustration /> : <canvas ref={canvas} role="img" aria-label={title} />;
 }
-function RobotIllustration() {
+export function RobotIllustration() {
   return <svg viewBox="0 0 400 250" role="img" aria-label="Illustrative robot assembly"><ellipse cx="205" cy="192" rx="123" ry="21" fill="#e9edf1"/><g stroke="#344253" strokeWidth="2" strokeLinejoin="round"><path d="m88 124 131-49 105 51-131 53Z" fill="#89a3b9"/><path d="m88 124 105 55v21L88 145Z" fill="#5d758d"/><path d="m193 179 131-53v21l-131 53Z" fill="#71899c"/><g fill="#26313b"><ellipse cx="111" cy="160" rx="17" ry="28" transform="rotate(-25 111 160)"/><ellipse cx="195" cy="192" rx="17" ry="28" transform="rotate(-25 195 192)"/><ellipse cx="303" cy="148" rx="17" ry="27" transform="rotate(-25 303 148)"/></g><path d="m156 122 67-26 51 24-67 28Z" fill="#397958"/><path d="m189 118 28-11 22 11-28 11Z" fill="#26313b"/><path d="m235 107 0-44 12-5 0 47Z" fill="#a5b3be"/><path d="m218 60 26-10 23 12-26 10Z" fill="#364558"/></g></svg>;
 }
 export default function Gallery() {
